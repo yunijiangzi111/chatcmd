@@ -54,6 +54,11 @@ public class ChatCmdMod {
                 LocalPlayer player = Minecraft.getInstance().player;
                 if (player != null) {
                     player.connection.sendChat(result.payload());
+                    // 明确告诉玩家「这条没被当成指令」，避免以为自己写错了
+                    player.displayClientMessage(
+                            Component.literal("[ChatCmd] 已作为普通聊天发出：" + result.payload())
+                                    .withStyle(ChatFormatting.GRAY),
+                            false);
                 }
             }
             case OK -> {
@@ -69,6 +74,13 @@ public class ChatCmdMod {
                             Component.literal("[ChatCmd] 已执行：/" + result.payload())
                                     .withStyle(ChatFormatting.GRAY),
                             false);
+                    // 模糊匹配纠错时必须明说，绝不静默改词
+                    if (!result.hint().isEmpty()) {
+                        player.displayClientMessage(
+                                Component.literal("[ChatCmd] " + result.hint())
+                                        .withStyle(ChatFormatting.YELLOW),
+                                false);
+                    }
                 }
             }
             default -> {

@@ -46,6 +46,16 @@ public final class ParseResult {
         return new ParseResult(Status.OK, command, "");
     }
 
+    /**
+     * 解析成功，并附带一条给用户看的补充说明（例如「已按模糊匹配识别为 X」）。
+     *
+     * @param command 生成的指令，<b>不含前导斜杠</b>
+     * @param hint    成功时的补充说明；没有就传空串
+     */
+    public static ParseResult ok(String command, String hint) {
+        return new ParseResult(Status.OK, command, hint);
+    }
+
     /** 不归本模组管，原样放行。 */
     public static ParseResult notMyInput() {
         return new ParseResult(Status.NOT_MY_INPUT, "", "");
@@ -75,7 +85,7 @@ public final class ParseResult {
         return payload;
     }
 
-    /** 给用户看的提示，可能是空串。 */
+    /** 给用户看的提示：失败时是纠错说明，成功时可能是模糊匹配的补充说明；没有则为空串。 */
     public String hint() {
         return hint;
     }

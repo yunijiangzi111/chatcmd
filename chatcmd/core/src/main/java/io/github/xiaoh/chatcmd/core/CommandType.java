@@ -18,7 +18,9 @@ public enum CommandType {
     /** 设置天气：{@code /weather <enum>} */
     WEATHER("weather", 1, 1, true),
     /** 设置难度：{@code /difficulty <enum>} */
-    DIFFICULTY("difficulty", 1, 1, true);
+    DIFFICULTY("difficulty", 1, 1, true),
+    /** 修改游戏规则：{@code /gamerule <rule> <true|false>} */
+    GAMERULE("gamerule", 2, 2, false);
 
     private final String commandPrefix;
     private final int minArgs;
@@ -66,6 +68,7 @@ public enum CommandType {
             case GAMEMODE -> "#模式 <创造|生存|冒险|旁观>";
             case WEATHER -> "#天气 <晴|雨|雷>";
             case DIFFICULTY -> "#难度 <和平|简单|普通|困难>";
+            case GAMERULE -> "#规则 <规则> <开|关>";
         };
     }
 }

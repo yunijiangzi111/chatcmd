@@ -16,7 +16,15 @@ import java.util.regex.Pattern;
  *
  * <p>解析成功后产出的是<b>不含前导斜杠</b>的原版指令串，可直接交给客户端发送。
  *
- * <p>匹配算法（计划 §6.4）分 5 步：归一化 → 触发判定 → 动词最长前缀匹配 → 参数切分 → 逐参解析组装。
+ * <p>匹配算法（计划 §6.4）分 6 步：归一化 → 触发判定 → 整句短语 → 动词最长前缀匹配
+ * → 参数切分 → 逐参解析组装。
+ *
+ * <p>精确匹配全部失败后才走 {@link Fuzzy} 的编辑距离兜底，并且分两级：
+ * <ul>
+ *   <li><b>自动纠错</b>（严格阈值）：直接执行，同时在 {@link ParseResult#hint()} 里注明
+ *       「已按模糊匹配识别为 X」，绝不静默改词。</li>
+ *   <li><b>提示纠错</b>（宽松一档）：不执行，只在报错里附一句「你是不是想用 #X ？」。</li>
+ * </ul>
  */
 public final class CommandParser {
 
@@ -69,24 +77,62 @@ public final class CommandParser {
                     "在 # 后面写上指令，例如 " + CommandType.GIVE.usage());
         }
 
-        // 3. 动词匹配（最长前缀优先）
+        // 3. 整句短语精确匹配：口语整句 → 完整指令（如「死亡不掉落」）
+        Optional<String> phrase = aliasTable.phrase(body);
+        if (phrase.isPresent()) {
+            return ParseResult.ok(phrase.get());
+        }
+
+        // 4. 动词匹配（最长前缀优先）
+        String note = "";
         Optional<AliasTable.VerbMatch> matchOpt = aliasTable.findLongestVerbPrefix(body);
         if (matchOpt.isEmpty()) {
-            return ParseResult.error(ParseResult.Status.UNKNOWN_VERB,
-                    "没认出这条指令。可用的动词：" + aliasTable.verbHint());
+            // 4a. 整句短语模糊兜底（整句打错字）
+            Optional<AliasTable.Match> fuzzyPhrase = aliasTable.fuzzyPhrase(body);
+            if (fuzzyPhrase.isPresent()) {
+                return ParseResult.ok(fuzzyPhrase.get().value(),
+                        fuzzyNote(fuzzyPhrase.get().key()));
+            }
+            // 4b. 动词模糊兜底（动词打错字）
+            Optional<AliasTable.VerbMatch> fuzzyVerb = aliasTable.findFuzzyVerbPrefix(body);
+            if (fuzzyVerb.isEmpty()) {
+                return ParseResult.error(ParseResult.Status.UNKNOWN_VERB, unknownVerbHint(body));
+            }
+            matchOpt = fuzzyVerb;
+            note = fuzzyNote(fuzzyVerb.get().alias());
         }
         AliasTable.VerbMatch match = matchOpt.get();
-        String rest = body.substring(match.alias().length()).trim();
+        String rest = body.substring(match.matchedLength()).trim();
 
-        // 4. 参数切分
+        // 5. 参数切分
         List<String> args = splitArgs(rest, match.type());
         if (args.size() < match.type().minArgs() || args.size() > match.type().maxArgs()) {
             return ParseResult.error(ParseResult.Status.BAD_ARGS,
                     "参数个数不对。用法：" + match.type().usage());
         }
 
-        // 5. 逐参解析 + 组装
-        return assemble(match.type(), args);
+        // 6. 逐参解析 + 组装
+        return assemble(match.type(), args, note);
+    }
+
+    /** 认不出动词时的提示：附一句最接近的候选，但不自动执行。 */
+    private String unknownVerbHint(String body) {
+        String hint = "没认出「" + body + "」这条指令。可用的动词：" + aliasTable.verbHint();
+        Optional<String> suggest = aliasTable.nearestVerb(body);
+        return suggest.map(s -> hint + "。你是不是想用：#" + s + " ？").orElse(hint);
+    }
+
+    /** 模糊匹配命中的统一回显文案。 */
+    private static String fuzzyNote(String key) {
+        return "已按模糊匹配识别为「" + key + "」";
+    }
+
+    /** 拼接两条说明，空串自动跳过。 */
+    private static String join(String a, String b) {
+        if (a.isEmpty()) {
+            return b;
+        }
+        return b.isEmpty() ? a : a + "；" + b;
     }
 
     /**
@@ -143,33 +189,60 @@ public final class CommandParser {
     }
 
     /** 按指令类型组装。 */
-    private ParseResult assemble(CommandType type, List<String> args) {
+    private ParseResult assemble(CommandType type, List<String> args, String note) {
         return switch (type) {
-            case GIVE -> assembleGive(args);
+            case GIVE -> assembleGive(args, note);
             case TP -> assembleTp(args);
-            case TIME, GAMEMODE, WEATHER, DIFFICULTY -> assembleEnum(type, args);
+            case GAMERULE -> assembleGamerule(args, note);
+            case TIME, GAMEMODE, WEATHER, DIFFICULTY -> assembleEnum(type, args, note);
         };
     }
 
-    /** 枚举类：查值别名表。 */
-    private ParseResult assembleEnum(CommandType type, List<String> args) {
+    /** 枚举类：查值别名表，精确失败后模糊兜底。 */
+    private ParseResult assembleEnum(CommandType type, List<String> args, String note) {
         String raw = args.get(0);
         Optional<String> value = aliasTable.value(type, raw);
         if (value.isEmpty()) {
-            return ParseResult.error(ParseResult.Status.UNKNOWN_VALUE,
-                    "「" + raw + "」不是有效的取值。用法：" + type.usage());
+            Optional<AliasTable.Match> fuzzy = aliasTable.fuzzyValue(type, raw);
+            if (fuzzy.isPresent()) {
+                value = Optional.of(fuzzy.get().value());
+                note = join(note, fuzzyNote(fuzzy.get().key()));
+            }
         }
-        return ParseResult.ok(type.commandPrefix() + " " + value.get());
+        if (value.isPresent()) {
+            return ParseResult.ok(type.commandPrefix() + " " + value.get(), note);
+        }
+        return ParseResult.error(ParseResult.Status.UNKNOWN_VALUE, unknownValueHint(type, raw));
+    }
+
+    /**
+     * 取值不合法时的提示。
+     *
+     * <p>如果这个取值其实是某条整句短语（例如 {@code #模式 死亡不掉落} 里的「死亡不掉落」），
+     * 就直接告诉用户正确的说法 —— 这类错误是「走错动词」而不是「打错字」。
+     */
+    private String unknownValueHint(CommandType type, String raw) {
+        Optional<String> suggest = aliasTable.phrase(raw).isPresent()
+                ? Optional.of(raw)
+                : aliasTable.nearestPhrase(raw);
+        if (suggest.isPresent()) {
+            return "「" + raw + "」不归 " + type.commandPrefix() + " 管。你是不是想用：#"
+                    + suggest.get() + " ？";
+        }
+        return "「" + raw + "」不是有效的取值。用法：" + type.usage();
     }
 
     /** 给予物品：{@code give @s <item> <count>}，数量缺省为 1。 */
-    private ParseResult assembleGive(List<String> args) {
+    private ParseResult assembleGive(List<String> args, String note) {
         String itemRaw = args.get(0);
-        Optional<String> itemId = resolveItem(itemRaw);
-        if (itemId.isEmpty()) {
+        ItemResolution item = resolveItem(itemRaw, note);
+        note = item.note();
+
+        if (item.value().isEmpty()) {
             return ParseResult.error(ParseResult.Status.UNKNOWN_VALUE,
                     "不认识物品「" + itemRaw + "」。用法：" + CommandType.GIVE.usage());
         }
+        String itemId = item.value().get();
 
         int count = 1;
         if (args.size() >= 2) {
@@ -188,29 +261,59 @@ public final class CommandParser {
                 return ParseResult.error(ParseResult.Status.BAD_ARGS, "数量必须是正整数。");
             }
         }
-        return ParseResult.ok(CommandType.GIVE.commandPrefix() + " @s " + itemId.get() + " " + count);
+        return ParseResult.ok(CommandType.GIVE.commandPrefix() + " @s " + itemId + " " + count, note);
+    }
+
+    /** 物品解析结果：解析出的物品 ID + 需要回显给用户的模糊匹配说明。 */
+    private record ItemResolution(Optional<String> value, String note) {
     }
 
     /**
-     * 物品名解析三级回退（计划 §6.2）：
+     * 物品名解析四级回退（计划 §6.2）：
      * <ol>
-     *   <li>查 {@link AliasTable} 手工表</li>
+     *   <li>查 {@link AliasTable} 手工表（精确）</li>
      *   <li>问 {@link ItemIdResolver}（适配层查游戏注册表）</li>
+     *   <li>手工表模糊兜底（错别字，如「钻右剑」→「钻石剑」）</li>
      *   <li>兜底：含 {@code :} 原样透传；否则补 {@code minecraft:} 前缀 + 空格转下划线</li>
      * </ol>
      */
-    private Optional<String> resolveItem(String raw) {
+    private ItemResolution resolveItem(String raw, String note) {
         Optional<String> fromTable = aliasTable.item(raw);
         if (fromTable.isPresent()) {
-            return fromTable;
+            return new ItemResolution(fromTable, note);
         }
         Optional<String> fromRegistry = itemIdResolver.resolve(raw);
         if (fromRegistry.isPresent()) {
-            return fromRegistry;
+            return new ItemResolution(fromRegistry, note);
+        }
+        Optional<AliasTable.Match> fuzzy = aliasTable.fuzzyItem(raw);
+        if (fuzzy.isPresent()) {
+            return new ItemResolution(Optional.of(fuzzy.get().value()),
+                    join(note, fuzzyNote(fuzzy.get().key())));
         }
         // 输入已在 normalize 里转过小写，这里只需补前缀和转下划线
         String id = raw.replace(' ', '_');
-        return Optional.of(id.contains(":") ? id : "minecraft:" + id);
+        return new ItemResolution(Optional.of(id.contains(":") ? id : "minecraft:" + id), note);
+    }
+
+    /** 游戏规则：{@code gamerule <rule> <true|false>}，规则名与开关都支持中文别名。 */
+    private ParseResult assembleGamerule(List<String> args, String note) {
+        String rule = aliasTable.gamerule(args.get(0)).orElse(args.get(0));
+
+        String boolRaw = args.get(1);
+        Optional<String> boolValue = aliasTable.value(CommandType.GAMERULE, boolRaw);
+        if (boolValue.isEmpty()) {
+            Optional<AliasTable.Match> fuzzy = aliasTable.fuzzyValue(CommandType.GAMERULE, boolRaw);
+            if (fuzzy.isPresent()) {
+                boolValue = Optional.of(fuzzy.get().value());
+                note = join(note, fuzzyNote(fuzzy.get().key()));
+            }
+        }
+        if (boolValue.isEmpty()) {
+            return ParseResult.error(ParseResult.Status.UNKNOWN_VALUE,
+                    "「" + boolRaw + "」不是有效的开关。用法：" + CommandType.GAMERULE.usage());
+        }
+        return ParseResult.ok(CommandType.GAMERULE.commandPrefix() + " " + rule + " " + boolValue.get(), note);
     }
 
     /** 传送：{@code tp @s <x> <y> <z>}。 */

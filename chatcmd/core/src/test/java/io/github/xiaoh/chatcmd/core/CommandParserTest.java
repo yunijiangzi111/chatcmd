@@ -1,6 +1,7 @@
 package io.github.xiaoh.chatcmd.core;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -186,5 +187,117 @@ class CommandParserTest {
         assertTrue(parser.parse("#跳舞").hint().contains("动词"));
         assertTrue(parser.parse("#传送 100 64").hint().contains("#传送"));
         assertTrue(parser.parse("#模式飞行").hint().contains("#模式"));
+    }
+
+    // ---------- v0.2：同义词补充 ----------
+
+    @Test
+    @DisplayName("同义词：中午 -> noon（不需要靠模糊匹配猜）")
+    void timeNoonSynonym() {
+        assertEquals("time set noon", parser.parse("#时间 中午").payload());
+        assertEquals("time set day", parser.parse("#时间 早上").payload());
+    }
+
+    // ---------- v0.2：整句短语 + 游戏规则 ----------
+
+    @Test
+    @DisplayName("整句短语：死亡不掉落 -> gamerule keepInventory true")
+    void phraseKeepInventory() {
+        ParseResult r = parser.parse("#死亡不掉落");
+        assertTrue(r.isOk(), r.toString());
+        assertEquals("gamerule keepInventory true", r.payload());
+    }
+
+    @Test
+    @DisplayName("整句短语：关闭死亡不掉落 -> gamerule keepInventory false")
+    void phraseKeepInventoryOff() {
+        assertEquals("gamerule keepInventory false", parser.parse("#关闭死亡不掉落").payload());
+    }
+
+    @Test
+    @DisplayName("走错动词时提示正确说法，而不是只说「取值无效」")
+    void wrongVerbGivesPhraseSuggestion() {
+        ParseResult r = parser.parse("#模式 死亡不掉落");
+        assertSame(ParseResult.Status.UNKNOWN_VALUE, r.status());
+        assertTrue(r.hint().contains("#死亡不掉落"), r.hint());
+    }
+
+    @Test
+    @DisplayName("游戏规则：中文规则名 + 中文开关")
+    void gameruleChinese() {
+        assertEquals("gamerule keepInventory true", parser.parse("#规则 死亡不掉落 开").payload());
+        assertEquals("gamerule mobGriefing false", parser.parse("#游戏规则 生物破坏 关").payload());
+    }
+
+    @Test
+    @DisplayName("游戏规则：输入被转小写后仍还原成原版驼峰写法")
+    void gameruleEnglishCamelCase() {
+        assertEquals("gamerule keepInventory true", parser.parse("#gamerule keepinventory on").payload());
+        assertEquals("gamerule mobGriefing false", parser.parse("#规则 mobgriefing off").payload());
+    }
+
+    @Test
+    @DisplayName("游戏规则开关不合法 -> UNKNOWN_VALUE")
+    void gameruleBadSwitch() {
+        assertSame(ParseResult.Status.UNKNOWN_VALUE, parser.parse("#规则 死亡不掉落 也许").status());
+    }
+
+    // ---------- v0.2：模糊匹配（编辑距离容错） ----------
+
+    @Test
+    @DisplayName("英文动词打错一个字 -> 自动纠错并回显命中项")
+    void fuzzyVerbEnglish() {
+        ParseResult r = parser.parse("#giv 钻石剑 2");
+        assertTrue(r.isOk(), r.toString());
+        assertEquals("give @s minecraft:diamond_sword 2", r.payload());
+        assertTrue(r.hint().contains("模糊匹配"), r.hint());
+        assertTrue(r.hint().contains("give"), r.hint());
+    }
+
+    @Test
+    @DisplayName("物品名打错一个字 -> 钻右剑 纠正为 钻石剑")
+    void fuzzyItem() {
+        ParseResult r = parser.parse("#给我 钻右剑 3");
+        assertTrue(r.isOk(), r.toString());
+        assertEquals("give @s minecraft:diamond_sword 3", r.payload());
+        assertTrue(r.hint().contains("钻石剑"), r.hint());
+    }
+
+    @Test
+    @DisplayName("整句短语打错一个字 -> 自动纠错")
+    void fuzzyPhrase() {
+        ParseResult r = parser.parse("#死亡不掉洛");
+        assertTrue(r.isOk(), r.toString());
+        assertEquals("gamerule keepInventory true", r.payload());
+        assertTrue(r.hint().contains("死亡不掉落"), r.hint());
+    }
+
+    @Test
+    @DisplayName("中文短词不自动纠错：下雪 不会被纠成 下雨、飞行 不会被纠成别的模式")
+    void shortChineseNotAutoCorrected() {
+        assertSame(ParseResult.Status.UNKNOWN_VALUE, parser.parse("#天气下雪").status());
+        assertSame(ParseResult.Status.UNKNOWN_VALUE, parser.parse("#模式飞行").status());
+    }
+
+    @Test
+    @DisplayName("动词差太远 -> 报错，只在提示里给出「你是不是想用」")
+    void fuzzyTooFarFallsBackToError() {
+        ParseResult r = parser.parse("#模组 创造");
+        assertSame(ParseResult.Status.UNKNOWN_VERB, r.status());
+        assertTrue(r.hint().contains("#模式"), r.hint());
+    }
+
+    @Test
+    @DisplayName("毫不相关的输入不会被硬纠错")
+    void unrelatedInputNotCorrected() {
+        ParseResult r = parser.parse("#跳舞");
+        assertSame(ParseResult.Status.UNKNOWN_VERB, r.status());
+        assertFalse(r.hint().contains("你是不是想用"), r.hint());
+    }
+
+    @Test
+    @DisplayName("模糊匹配的回显只出现在成功结果里，精确匹配不带说明")
+    void exactMatchHasNoNote() {
+        assertTrue(parser.parse("#给我 钻石剑 5").hint().isEmpty());
     }
 }
