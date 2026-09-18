@@ -46,9 +46,9 @@ displayName="${mod_name}" #mandatory
 
 # The description text for the mod (multi line!) (#mandatory)
 description='''
-在聊天框里用中文下达指令：输入「#给我 钻石剑 5」，模组会翻译成原版指令 give @s minecraft:diamond_sword 5，并以你自己的身份发出。
+用中文在聊天框里向模组下达指令：输入 # 给我 钻石剑 5，模组会翻译成原版指令 /give、/tp、/time set 等，并以你自己的身份发出。
 
-输入 ##任意文本 可以发出以 # 开头的普通聊天。
+输入 ## 任意文本 可以把开头带 # 的话当作普通聊天发出去。
 
 注意：本模组只做「翻译 + 发送」，不绕过任何权限，能否生效完全由服务端按你的权限决定。
 '''

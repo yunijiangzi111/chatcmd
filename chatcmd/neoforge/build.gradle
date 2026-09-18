@@ -103,6 +103,10 @@ var generateModMetadata = tasks.register("generateModMetadata", ProcessResources
             mod_version            : mod_version,
     ]
     inputs.properties replaceProperties
+    // 本机 ANSI 代码页是 GBK，而 Gradle 守护进程被设成 -Dfile.encoding=GBK（修 @argfile 编码问题所需），
+    // 于是 ProcessResources 会按 GBK 去读 UTF-8 的模板文件，模板里的中文会变成乱码。
+    // 这里显式指定按 UTF-8 读模板，与模板文件的实际编码对齐。
+    filteringCharset = 'UTF-8'
     expand replaceProperties
     from "src/main/templates"
     into "build/generated/sources/modMetadata"
