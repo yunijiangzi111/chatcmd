@@ -1,0 +1,18 @@
+// 根构建脚本：只放全模块共用的约定。
+// Minecraft / NeoForge 相关插件只在 :neoforge 子模块里应用，保证 :core 保持纯 Java。
+
+allprojects {
+    group = mod_group_id
+    version = mod_version
+}
+
+subprojects {
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = 'UTF-8'
+    }
+}
+
+tasks.named('wrapper', Wrapper).configure {
+    // 只下载 Gradle 二进制包，不下载带源码文档的 -all 包，减小体积。
+    distributionType = Wrapper.DistributionType.BIN
+}

@@ -1,0 +1,132 @@
+// :neoforge —— NeoForge 适配层。
+// 只做两件事：把 core 的解析结果发成原版指令；用注册表实现 core 的 ItemIdResolver 接口。
+
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'net.neoforged.moddev' version '2.0.147'
+    id 'idea'
+}
+
+sourceSets.main.resources {
+    // 数据生成器（datagen）的输出目录
+    srcDir('src/generated/resources')
+
+    // 开发期专用资源不进最终产物
+    exclude("**/*.bbmodel") // BlockBench 工程文件
+    exclude("src/generated/**/.cache") // datagen 缓存
+}
+
+repositories {
+    // 需要额外依赖仓库时在这里加
+}
+
+base {
+    archivesName = mod_id
+}
+
+// Mojang 在 1.21.1 给终端用户发的是 Java 21，模组同样目标 Java 21。
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+neoForge {
+    version = project.neo_version
+
+    parchment {
+        mappingsVersion = project.parchment_mappings_version
+        minecraftVersion = project.parchment_minecraft_version
+    }
+
+    // Access Transformer 会自动检测，需要时取消下面注释
+    // accessTransformers = project.files('src/main/resources/META-INF/accesstransformer.cfg')
+
+    runs {
+        client {
+            client()
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        server {
+            server()
+            programArgument '--nogui'
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        data {
+            data()
+            programArguments.addAll '--mod', project.mod_id, '--all', '--output', file('src/generated/resources/').getAbsolutePath(), '--existing', file('src/main/resources/').getAbsolutePath()
+        }
+
+        configureEach {
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            logLevel = org.slf4j.event.Level.DEBUG
+        }
+    }
+
+    mods {
+        // 定义 模组 <-> 源码集 的绑定关系，告诉游戏哪些源码属于哪个模组
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
+        }
+    }
+}
+
+// 'localRuntime' 用于声明「只在本地运行期存在、不传给下游」的依赖
+configurations {
+    runtimeClasspath.extendsFrom localRuntime
+}
+
+dependencies {
+    implementation project(':core')
+}
+
+// 把 :core 的产物合并进模组 jar。
+// core 是零外部依赖的纯 Java 库，直接合并类文件是安全的；
+// 排除它自己的 MANIFEST.MF，避免覆盖模组 jar 的清单。
+def coreJar = project(':core').tasks.named('jar')
+tasks.named('jar', Jar) {
+    dependsOn coreJar
+    from(coreJar.flatMap { it.archiveFile }.map { zipTree(it.asFile) }) {
+        exclude 'META-INF/MANIFEST.MF'
+    }
+}
+
+// 把 src/main/templates 里的占位符（${mod_id} 等）展开，生成 neoforge.mods.toml
+var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
+    var replaceProperties = [
+            minecraft_version      : minecraft_version,
+            minecraft_version_range: minecraft_version_range,
+            neo_version            : neo_version,
+            loader_version_range   : loader_version_range,
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_license            : mod_license,
+            mod_version            : mod_version,
+    ]
+    inputs.properties replaceProperties
+    expand replaceProperties
+    from "src/main/templates"
+    into "build/generated/sources/modMetadata"
+}
+sourceSets.main.resources.srcDir generateModMetadata
+neoForge.ideSyncTask generateModMetadata
+
+publishing {
+    publications {
+        register('mavenJava', MavenPublication) {
+            from components.java
+        }
+    }
+    repositories {
+        maven {
+            url "file://${project.projectDir}/repo"
+        }
+    }
+}
+
+// IDEA 不再自动下载依赖的 sources/javadoc jar，需要显式打开
+idea {
+    module {
+        downloadSources = true
+        downloadJavadoc = true
+    }
+}

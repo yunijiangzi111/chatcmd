@@ -1,0 +1,53 @@
+// :core —— 纯 Java 解析引擎，零 Minecraft 依赖。
+// 这个模块只依赖 JUnit，可以脱离游戏直接跑测试。
+
+plugins {
+    id 'java-library'
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+// 零依赖硬约束（计划 §3.3）：core 内禁止出现任何 Minecraft / NeoForge 引用。
+// 靠自觉必然腐化，所以用任务在 build 时强制扫描，命中即失败。
+tasks.register('checkCorePurity') {
+    group = 'verification'
+    description = '扫描 core 源码，禁止出现 net.minecraft.* / net.neoforged.* 引用'
+    def srcDir = file('src/main/java')
+    inputs.dir(srcDir)
+    doLast {
+        def forbidden = ['net.minecraft.', 'net.neoforged.']
+        def bad = []
+        if (srcDir.exists()) {
+            srcDir.eachFileRecurse { f ->
+                if (f.name.endsWith('.java')) {
+                    f.eachLine { line, no ->
+                        if (forbidden.any { line.contains(it) }) {
+                            bad << "${f.name}:${no}  ${line.trim()}"
+                        }
+                    }
+                }
+            }
+        }
+        if (!bad.isEmpty()) {
+            throw new GradleException("core 违反零依赖约束，发现 Minecraft/NeoForge 引用：\n" + bad.join('\n'))
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn 'checkCorePurity'
+}

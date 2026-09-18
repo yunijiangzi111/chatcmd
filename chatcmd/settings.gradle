@@ -1,0 +1,17 @@
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+    }
+}
+
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+}
+
+rootProject.name = 'chatcmd'
+
+// chatcmd 模组由两个子模块组成：
+//   :core     —— 纯 Java 解析引擎，零 Minecraft 依赖，可脱离游戏跑单元测试
+//   :neoforge —— NeoForge 适配层，把 core 的解析结果发成原版指令
+include 'core'
+include 'neoforge'
