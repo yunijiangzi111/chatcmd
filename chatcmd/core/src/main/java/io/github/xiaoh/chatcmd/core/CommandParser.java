@@ -138,8 +138,11 @@ public final class CommandParser {
     /**
      * 归一化：全角转半角（含全角空格、全角数字）→ 去首尾空白 → 英文转小写。
      * 中文不受影响。
+     *
+     * <p>对适配层公开：从游戏注册表里取到的本地化物品名必须走同一套归一化，
+     * 才能和玩家输入对得上。
      */
-    static String normalize(String raw) {
+    public static String normalize(String raw) {
         StringBuilder sb = new StringBuilder(raw.length());
         for (int i = 0; i < raw.length(); i++) {
             char c = raw.charAt(i);

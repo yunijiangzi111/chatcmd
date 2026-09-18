@@ -1,19 +1,28 @@
 package io.github.xiaoh.chatcmd.neoforge;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.logging.LogUtils;
 
 import io.github.xiaoh.chatcmd.core.AliasTable;
 import io.github.xiaoh.chatcmd.core.CommandParser;
 import io.github.xiaoh.chatcmd.core.ParseResult;
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
 import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.client.event.ClientChatEvent;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
+import net.neoforged.neoforge.client.settings.KeyConflictContext;
+import net.neoforged.neoforge.client.settings.KeyModifier;
+import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 
 /**
@@ -36,8 +45,40 @@ public class ChatCmdMod {
     private static final CommandParser PARSER =
             new CommandParser(AliasTable.defaultTable(), new RegistryItemIdResolver());
 
-    public ChatCmdMod() {
+    /**
+     * 快捷键：按 {@code #}（也就是 Shift+3）直接打开聊天框并预填 {@code #}，
+     * 省掉「先按 T 再打 #」这一步。原版的 {@code /} 键就是这么干的。
+     *
+     * <p>玩家可在「选项 → 控制」里自行改键。注意：数字键本身也是原版的快捷栏切换键，
+     * 所以按住 Shift 按 3 有可能连带切换快捷栏第 3 格 —— 嫌烦就改绑到别的键。
+     */
+    public static final KeyMapping OPEN_CHAT = new KeyMapping(
+            "key.chatcmd.open_chat",
+            KeyConflictContext.IN_GAME,
+            KeyModifier.SHIFT,
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_3,
+            "key.categories.chatcmd");
+
+    public ChatCmdMod(IEventBus modEventBus) {
+        // 快捷键注册属于模组事件总线（IModBusEvent），不能挂在游戏事件总线上
+        modEventBus.addListener(ChatCmdMod::onRegisterKeyMappings);
         LOGGER.info("ChatCmd 聊天指令模组已加载，输入 # 开头的消息即可使用");
+    }
+
+    static void onRegisterKeyMappings(RegisterKeyMappingsEvent event) {
+        event.register(OPEN_CHAT);
+    }
+
+    /** 轮询快捷键：按下就把聊天框打开，并预填一个触发前缀。 */
+    @SubscribeEvent
+    static void onClientTick(ClientTickEvent.Post event) {
+        Minecraft minecraft = Minecraft.getInstance();
+        while (OPEN_CHAT.consumeClick()) {
+            if (minecraft.screen == null && minecraft.player != null) {
+                minecraft.setScreen(new ChatScreen(CommandParser.TRIGGER));
+            }
+        }
     }
 
     /** 拦截聊天框提交。 */
