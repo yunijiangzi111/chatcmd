@@ -30,7 +30,19 @@ public final class ParseResult {
         /** 参数个数或格式错。 */
         BAD_ARGS,
         /** 枚举值或物品名不在表里。 */
-        UNKNOWN_VALUE
+        UNKNOWN_VALUE,
+        /**
+         * 高危指令：解析成功，但要先由玩家二次确认才执行。
+         *
+         * <p>载荷与 {@link #OK} 完全一样（{@link #commands()} 就是待执行的指令），
+         * 区别只在<b>要不要先问一句</b>。判定与是否放行由适配层负责 ——
+         * 适配层把 {@link #commands()} 暂存下来，等玩家再发一条 {@code #确认} 才发出去。
+         */
+        CONFIRM,
+        /** 玩家发来了确认词（{@code #确认} 之类）。是否真的执行由适配层按暂存内容决定。 */
+        CONFIRM_ACCEPT,
+        /** 玩家发来了取消词（{@code #取消} 之类）。 */
+        CONFIRM_DECLINE
     }
 
     /** 多指令分隔符：一句中文口语可以对应多条原版指令。 */
@@ -76,6 +88,28 @@ public final class ParseResult {
         return new ParseResult(Status.NOT_MY_INPUT, "", "", List.of(), List.of());
     }
 
+    /**
+     * 高危指令：解析成功，但先不执行，等玩家确认。
+     *
+     * @param command     待执行的指令（<b>不含前导斜杠</b>，多条用 {@code \n} 分隔）
+     * @param hint        给玩家看的警告：会执行什么、会造成什么后果
+     * @param suggestions 可点击的回填候选，通常是 {@code #确认} / {@code #取消}
+     */
+    public static ParseResult confirm(String command, String hint, List<String> suggestions) {
+        return new ParseResult(Status.CONFIRM, command, hint,
+                List.of(command.split(COMMAND_SEPARATOR)), List.copyOf(suggestions));
+    }
+
+    /** 玩家发来了确认词。 */
+    public static ParseResult confirmAccept() {
+        return new ParseResult(Status.CONFIRM_ACCEPT, "", "", List.of(), List.of());
+    }
+
+    /** 玩家发来了取消词。 */
+    public static ParseResult confirmDecline() {
+        return new ParseResult(Status.CONFIRM_DECLINE, "", "", List.of(), List.of());
+    }
+
     /** 逃生通道：{@code text} 是要原样作为聊天发出的文本。 */
     public static ParseResult escapeChat(String text) {
         return new ParseResult(Status.ESCAPE_CHAT, text, "", List.of(), List.of());
@@ -103,7 +137,7 @@ public final class ParseResult {
      * 结果载荷。
      *
      * <p>
-     * {@link Status#OK} 时是生成的指令（不含前导斜杠，多条用 {@code \n} 分隔）；
+     * {@link Status#OK} 和 {@link Status#CONFIRM} 时是生成的指令（不含前导斜杠，多条用 {@code \n} 分隔）；
      * {@link Status#ESCAPE_CHAT} 时是要原样发出的聊天文本；其余状态为空串。
      */
     public String payload() {
@@ -119,7 +153,8 @@ public final class ParseResult {
      * 拆好的指令列表，按顺序发送。
      *
      * <p>
-     * 只有 {@link Status#OK} 时非空；单条指令时长度为 1，行为与 v0.3 完全一致。
+     * {@link Status#OK} 与 {@link Status#CONFIRM} 时非空（后者是「待执行」，要先经玩家确认）；
+     * 单条指令时长度为 1，行为与 v0.3 完全一致。
      */
     public List<String> commands() {
         return commands;

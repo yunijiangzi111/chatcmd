@@ -40,7 +40,9 @@ public enum CommandType {
     /** 批量清除实体：{@code /kill @e[...]}，取值本身就是完整指令；禁止模糊纠错 */
     CLEAR("", 1, 1, true, true),
     /** 查找结构：{@code /locate structure <id>} */
-    LOCATE("locate structure", 1, 1, true);
+    LOCATE("locate structure", 1, 1, true),
+    /** 生成实体：{@code /summon <entity> [x y z]}；数量大于 1 时拆成多条依次发 */
+    SUMMON("summon", 1, 4, false);
 
     private final String commandPrefix;
     private final int minArgs;
@@ -113,6 +115,7 @@ public enum CommandType {
             case XP -> "经验";
             case CLEAR -> "清除";
             case LOCATE -> "查找";
+            case SUMMON -> "生成";
         };
     }
 
@@ -133,6 +136,7 @@ public enum CommandType {
             case XP -> "#经验 <数量>";
             case CLEAR -> "#清除 <掉落物|经验球|怪物>";
             case LOCATE -> "#找 <结构名>（如 #找 村庄、#最近的村庄）";
+            case SUMMON -> "#生成 <实体> [数量] [x y z]（如 #生成 僵尸、#生成 坚守者 3）";
         };
     }
 }

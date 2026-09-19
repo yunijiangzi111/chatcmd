@@ -76,6 +76,15 @@ public final class ChatCmdClient {
      */
     private static boolean awaitingLocate;
 
+    /**
+     * 待确认的高危指令。
+     *
+     * <p>{@code #清除 怪物}、{@code #重置 全部} 这类不可逆的指令不会被立刻发出去，
+     * 而是先存在这里并弹一句警告；玩家再发一条 {@code #确认} 才真正执行，
+     * 发任何别的输入（包括普通聊天）都当放弃。
+     */
+    private static List<String> pendingConfirm = List.of();
+
     /** 回执里的坐标格式：{@code [123, ~, 456]}，中英文逗号都收。 */
     private static final Pattern LOCATE_COORDS =
             Pattern.compile("\\[\\s*(-?\\d+)\\s*[,，]\\s*(~|-?\\d+)\\s*[,，]\\s*(-?\\d+)\\s*\\]");
@@ -146,6 +155,12 @@ public final class ChatCmdClient {
         }
 
         ParseResult result = PARSER.parse(event.getMessage());
+        // 除了「确认 / 取消」这两句回话，任何别的输入都让上一次的待确认作废
+        if (result.status() != ParseResult.Status.CONFIRM
+                && result.status() != ParseResult.Status.CONFIRM_ACCEPT
+                && result.status() != ParseResult.Status.CONFIRM_DECLINE) {
+            pendingConfirm = List.of();
+        }
         switch (result.status()) {
             case NOT_MY_INPUT -> {
                 // 不归本模组管，原样放行
@@ -172,22 +187,7 @@ public final class ChatCmdClient {
                 event.setCanceled(true);
                 LocalPlayer player = Minecraft.getInstance().player;
                 if (player != null) {
-                    // 一句中文口语可能对应多条指令（如「永为白昼」），按顺序逐条发。
-                    // 与原版 ChatScreen.handleChatInput 完全一致：
-                    // 指令走 connection.sendCommand(不含斜杠的指令串)，普通聊天走 sendChat。
-                    // 这里刻意不绕过任何权限校验，能否生效由服务端按玩家权限判定。
-                    for (String command : result.commands()) {
-                        player.connection.sendCommand(command);
-                        // 结构查找的回执要等服务器回话，先挂上「等下一条消息」的标记
-                        if (command.startsWith("locate structure ")) {
-                            awaitingLocate = true;
-                        }
-                        // 保留本地回显，让玩家看得见实际发出了什么
-                        player.displayClientMessage(
-                                Component.literal("[ChatCmd] 已执行：/" + command)
-                                        .withStyle(ChatFormatting.GRAY),
-                                false);
-                    }
+                    executeCommands(player, result.commands());
                     // 模糊匹配纠错时必须明说，绝不静默改词
                     if (!result.hint().isEmpty()) {
                         player.displayClientMessage(
@@ -195,6 +195,48 @@ public final class ChatCmdClient {
                                         .withStyle(ChatFormatting.YELLOW),
                                 false);
                     }
+                }
+            }
+            case CONFIRM -> {
+                // 高危指令：先不发，把待执行的指令暂存下来，等玩家再确认一次
+                event.setCanceled(true);
+                LocalPlayer player = Minecraft.getInstance().player;
+                if (player != null) {
+                    pendingConfirm = result.commands();
+                    player.displayClientMessage(
+                            Component.literal("[ChatCmd] " + result.hint())
+                                    .withStyle(ChatFormatting.GOLD),
+                            false);
+                    displaySuggestions(player, "点这里确认或取消：", result.suggestions());
+                }
+            }
+            case CONFIRM_ACCEPT -> {
+                event.setCanceled(true);
+                LocalPlayer player = Minecraft.getInstance().player;
+                List<String> pending = pendingConfirm;
+                pendingConfirm = List.of();
+                if (player != null) {
+                    if (pending.isEmpty()) {
+                        player.displayClientMessage(
+                                Component.literal("[ChatCmd] 当前没有待确认的指令")
+                                        .withStyle(ChatFormatting.GRAY),
+                                false);
+                    } else {
+                        executeCommands(player, pending);
+                    }
+                }
+            }
+            case CONFIRM_DECLINE -> {
+                event.setCanceled(true);
+                LocalPlayer player = Minecraft.getInstance().player;
+                boolean hadPending = !pendingConfirm.isEmpty();
+                pendingConfirm = List.of();
+                if (player != null) {
+                    player.displayClientMessage(
+                            Component.literal("[ChatCmd] "
+                                    + (hadPending ? "已取消待确认的指令" : "当前没有待确认的指令"))
+                                    .withStyle(ChatFormatting.GRAY),
+                            false);
                 }
             }
             default -> {
@@ -206,9 +248,31 @@ public final class ChatCmdClient {
                             Component.literal("[ChatCmd] " + result.hint())
                                     .withStyle(ChatFormatting.RED),
                             false);
-                    displaySuggestions(player, result.suggestions());
+                    displaySuggestions(player, "你是不是想用：", result.suggestions());
                 }
             }
+        }
+    }
+
+    /**
+     * 按顺序把指令发出去，并逐条本地回显。
+     *
+     * <p>与原版 {@code ChatScreen.handleChatInput} 完全一致：指令走
+     * {@code connection.sendCommand}（不含斜杠的指令串）。
+     * <b>刻意不绕过任何权限校验</b>，能否生效由服务端按玩家权限判定。
+     */
+    private static void executeCommands(LocalPlayer player, List<String> commands) {
+        for (String command : commands) {
+            player.connection.sendCommand(command);
+            // 结构查找的回执要等服务器回话，先挂上「等下一条消息」的标记
+            if (command.startsWith("locate structure ")) {
+                awaitingLocate = true;
+            }
+            // 保留本地回显，让玩家看得见实际发出了什么
+            player.displayClientMessage(
+                    Component.literal("[ChatCmd] 已执行：/" + command)
+                            .withStyle(ChatFormatting.GRAY),
+                    false);
         }
     }
 
@@ -261,11 +325,11 @@ public final class ChatCmdClient {
      * 用 {@code SUGGEST_COMMAND}（「填入聊天框」动作）而不是 {@code RUN_COMMAND}（「直接执行」动作）：
      * 点一下只是把候选填进聊天框，玩家还能改，回车才真正发出去 —— 猜错也不会造成后果。
      */
-    private static void displaySuggestions(LocalPlayer player, List<String> suggestions) {
+    private static void displaySuggestions(LocalPlayer player, String tip, List<String> suggestions) {
         if (suggestions.isEmpty()) {
             return;
         }
-        MutableComponent line = Component.literal("[ChatCmd] 你是不是想用：")
+        MutableComponent line = Component.literal("[ChatCmd] " + tip)
                 .withStyle(ChatFormatting.GOLD);
         for (int i = 0; i < suggestions.size(); i++) {
             if (i > 0) {

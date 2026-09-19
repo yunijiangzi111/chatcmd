@@ -436,10 +436,10 @@ class CommandParserTest {
     }
 
     @Test
-    @DisplayName("不带对象的重置 = 全部，一次发 6 条指令")
+    @DisplayName("不带对象的重置 = 全部，一次发 6 条指令，但要先二次确认")
     void resetWithoutTargetIsAll() {
         ParseResult r = parser.parse("#重置");
-        assertTrue(r.isOk(), r.toString());
+        assertSame(ParseResult.Status.CONFIRM, r.status(), r.toString());
         assertEquals(List.of(
                 "gamerule doDaylightCycle true",
                 "gamerule doWeatherCycle true",
@@ -447,7 +447,11 @@ class CommandParserTest {
                 "effect clear @s",
                 "gamerule keepInventory false",
                 "gamerule mobGriefing true"), r.commands());
-        assertEquals(r.payload(), parser.parse("#重置 全部").payload());
+        ParseResult all = parser.parse("#重置 全部");
+        assertSame(ParseResult.Status.CONFIRM, all.status(), all.toString());
+        assertEquals(r.payload(), all.payload());
+        // 单类重置不算「全部」，照旧一步到位
+        assertSame(ParseResult.Status.OK, parser.parse("#重置 时间").status());
     }
 
     @Test
@@ -697,18 +701,28 @@ class CommandParserTest {
     }
 
     @Test
-    @DisplayName("清除：掉落物 / 经验球 / 怪物")
+    @DisplayName("清除：掉落物 / 经验球 / 怪物，都要先二次确认")
     void clearEntities() {
-        assertEquals("kill @e[type=minecraft:item]", parser.parse("#清除 掉落物").payload());
+        ParseResult items = parser.parse("#清除 掉落物");
+        assertSame(ParseResult.Status.CONFIRM, items.status(), items.toString());
+        assertEquals("kill @e[type=minecraft:item]", items.payload());
         assertEquals("kill @e[type=minecraft:experience_orb]", parser.parse("#清除 经验球").payload());
+        ParseResult mobs = parser.parse("#清除 怪物");
+        assertSame(ParseResult.Status.CONFIRM, mobs.status(), mobs.toString());
         assertEquals("kill @e[type=!player,type=!minecraft:item,type=!minecraft:experience_orb]",
-                parser.parse("#清除 怪物").payload());
+                mobs.payload());
+        // 警告必须说清「不只是怪物」，这正是朋友反馈的那个坑
+        assertTrue(mobs.hint().contains("动物"), mobs.hint());
+        assertTrue(mobs.hint().contains("村民"), mobs.hint());
     }
 
     @Test
     @DisplayName("清除：带空格的「清除 效果」和「清除效果」都走清效果")
     void clearEffectsBothWays() {
+        // 短语形式不归清除动词管，一步到位
         assertEquals("effect clear @s", parser.parse("#清除效果").payload());
+        assertSame(ParseResult.Status.OK, parser.parse("#清除效果").status());
+        assertSame(ParseResult.Status.CONFIRM, parser.parse("#清除 效果").status());
         assertEquals("effect clear @s", parser.parse("#清除 效果").payload());
     }
 
@@ -718,6 +732,38 @@ class CommandParserTest {
         ParseResult r = parser.parse("#清楚 掉落物");
         assertSame(ParseResult.Status.UNKNOWN_VERB, r.status());
         assertTrue(r.payload().isEmpty(), r.payload());
+    }
+
+    // ---------- v0.8：高危指令的二次确认 ----------
+
+    @Test
+    @DisplayName("确认回话：#确认 / #好 -> CONFIRM_ACCEPT，#取消 / #算了 -> CONFIRM_DECLINE")
+    void confirmReplies() {
+        assertSame(ParseResult.Status.CONFIRM_ACCEPT, parser.parse("#确认").status());
+        assertSame(ParseResult.Status.CONFIRM_ACCEPT, parser.parse("#好").status());
+        assertSame(ParseResult.Status.CONFIRM_DECLINE, parser.parse("#取消").status());
+        assertSame(ParseResult.Status.CONFIRM_DECLINE, parser.parse("#算了").status());
+        // 带参数就不是回话了，仍然走正常解析
+        assertSame(ParseResult.Status.UNKNOWN_VERB, parser.parse("#确认 一下").status());
+    }
+
+    @Test
+    @DisplayName("待确认结果带 /确认 与 /取消 两个可点击候选")
+    void confirmSuggestions() {
+        ParseResult r = parser.parse("#清除 怪物");
+        assertSame(ParseResult.Status.CONFIRM, r.status(), r.toString());
+        assertEquals(List.of("#确认", "#取消"), r.suggestions());
+        // 载荷原样保留，玩家确认后发的就是它
+        assertEquals("kill @e[type=!player,type=!minecraft:item,type=!minecraft:experience_orb]",
+                r.commands().get(0));
+    }
+
+    @Test
+    @DisplayName("非高危指令不受确认闸门影响")
+    void safeCommandsNeedNoConfirm() {
+        assertSame(ParseResult.Status.OK, parser.parse("#给我 钻石剑 5").status());
+        assertSame(ParseResult.Status.OK, parser.parse("#时间 白天").status());
+        assertSame(ParseResult.Status.OK, parser.parse("#找 村庄").status());
     }
 
     @Test
@@ -760,5 +806,101 @@ class CommandParserTest {
     void locateDoesNotSteal() {
         assertEquals("give @s minecraft:diamond_sword 1", parser.parse("#给我 钻石剑").payload());
         assertEquals("locate structure #minecraft:village", parser.parse("#找 村庄").payload());
+    }
+
+    // ---------- v0.8：规则模糊语义 ----------
+
+    @Test
+    @DisplayName("规则同义词：naturalRegeneration 的几种叫法都能命中")
+    void gameruleNaturalRegenerationSynonyms() {
+        assertEquals("gamerule naturalRegeneration true", parser.parse("#规则 自然回血 开").payload());
+        assertEquals("gamerule naturalRegeneration true", parser.parse("#规则 生命恢复 开").payload());
+        assertEquals("gamerule naturalRegeneration true", parser.parse("#规则 生命自然恢复 开").payload());
+        assertEquals("gamerule naturalRegeneration true", parser.parse("#规则 自动回血 开").payload());
+        assertEquals("gamerule naturalRegeneration false", parser.parse("#规则 生命回复 关").payload());
+    }
+
+    @Test
+    @DisplayName("规则同义词：其它规则也补了常见叫法")
+    void gameruleOtherSynonyms() {
+        assertEquals("gamerule doDaylightCycle false", parser.parse("#规则 日夜交替 关").payload());
+        assertEquals("gamerule doWeatherCycle false", parser.parse("#规则 天气循环 关").payload());
+        assertEquals("gamerule doMobSpawning false", parser.parse("#规则 生物生成 关").payload());
+        assertEquals("gamerule showDeathMessages false", parser.parse("#规则 死亡提示 关").payload());
+        assertEquals("gamerule keepInventory true", parser.parse("#规则 不掉落物品 开").payload());
+    }
+
+    @Test
+    @DisplayName("规则名打错一个字 -> 自动纠错并注明")
+    void gameruleFuzzy() {
+        ParseResult r = parser.parse("#规则 生命自然恢服 开");
+        assertTrue(r.isOk(), r.toString());
+        assertEquals("gamerule naturalRegeneration true", r.payload());
+        assertTrue(r.hint().contains("生命自然恢复"), r.hint());
+    }
+
+    @Test
+    @DisplayName("规则名认不出 -> 本地报错并给候选，不再原样透传给服务端")
+    void gameruleUnknownRule() {
+        ParseResult r = parser.parse("#规则 飞飞飞 开");
+        assertSame(ParseResult.Status.UNKNOWN_VALUE, r.status());
+        assertTrue(r.payload().isEmpty(), r.payload());
+        assertFalse(r.suggestions().isEmpty(), "应该给出可点击的规则候选");
+        assertTrue(r.hint().contains("#规则"), r.hint());
+    }
+
+    // ---------- v0.8：生成指令 ----------
+
+    @Test
+    @DisplayName("生成：僵尸 / 坚守者 / 监守者 -> summon")
+    void summonBasic() {
+        assertEquals("summon minecraft:zombie", parser.parse("#生成 僵尸").payload());
+        assertEquals("summon minecraft:warden", parser.parse("#生成 坚守者").payload());
+        assertEquals("summon minecraft:warden", parser.parse("#生成 监守者").payload());
+        assertEquals("summon minecraft:creeper", parser.parse("#召唤 苦力怕").payload());
+        assertEquals("summon minecraft:iron_golem", parser.parse("#刷怪 铁傀儡").payload());
+        assertEquals("summon minecraft:zombie", parser.parse("#生成minecraft:zombie").payload());
+    }
+
+    @Test
+    @DisplayName("生成：数量拆成多条依次发，坐标原样透传")
+    void summonCountAndPosition() {
+        ParseResult three = parser.parse("#生成 僵尸 3");
+        assertTrue(three.isOk(), three.toString());
+        assertEquals(List.of(
+                "summon minecraft:zombie",
+                "summon minecraft:zombie",
+                "summon minecraft:zombie"), three.commands());
+        assertEquals("summon minecraft:zombie ~ ~1 ~", parser.parse("#生成 僵尸 ~ ~1 ~").payload());
+        assertEquals("summon minecraft:zombie 100 64 -20",
+                parser.parse("#生成 僵尸 100 64 -20").payload());
+    }
+
+    @Test
+    @DisplayName("生成：数量超上限或参数写坏 -> BAD_ARGS，绝不硬发")
+    void summonBadArgs() {
+        assertSame(ParseResult.Status.BAD_ARGS, parser.parse("#生成 僵尸 9999").status());
+        assertSame(ParseResult.Status.BAD_ARGS, parser.parse("#生成 僵尸 0").status());
+        assertSame(ParseResult.Status.BAD_ARGS, parser.parse("#生成 僵尸 3 5").status());
+    }
+
+    @Test
+    @DisplayName("生成：实体名打错一个字 -> 自动纠错；首字不同绝不互相纠")
+    void summonFuzzyEntity() {
+        ParseResult r = parser.parse("#生成 坚首者");
+        assertTrue(r.isOk(), r.toString());
+        assertEquals("summon minecraft:warden", r.payload());
+        assertTrue(r.hint().contains("坚守者"), r.hint());
+        // 「守」开头只会在「守卫者」那一族里纠，「坚守者」不会被牵扯进来
+        assertEquals("summon minecraft:guardian", parser.parse("#生成 守首者").payload());
+    }
+
+    @Test
+    @DisplayName("生成：认不出的实体本地报错并给候选")
+    void summonUnknownEntity() {
+        ParseResult r = parser.parse("#生成 大怪物");
+        assertSame(ParseResult.Status.UNKNOWN_VALUE, r.status());
+        assertTrue(r.payload().isEmpty(), r.payload());
+        assertFalse(r.suggestions().isEmpty(), "应该给出可点击的实体候选");
     }
 }

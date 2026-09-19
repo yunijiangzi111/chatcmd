@@ -12,7 +12,8 @@ import java.util.Set;
 
 /**
  * 中文别名表：动词别名 → 指令类型、枚举值别名 → 原版取值、物品别名 → 原版物品 ID、
- * 游戏规则别名 → 原版规则名、附魔别名 → 原版附魔 ID、整句短语 → 完整指令。
+ * 游戏规则别名 → 原版规则名、实体别名 → 原版实体 ID、附魔别名 → 原版附魔 ID、
+ * 整句短语 → 完整指令。
  *
  * <p>查询分两层：
  * <ol>
@@ -73,6 +74,7 @@ public final class AliasTable {
     private final Map<CommandType, Map<String, String>> valueAliases;
     private final Map<String, String> itemAliases;
     private final Map<String, String> gameruleAliases;
+    private final Map<String, String> entityAliases;
     private final Map<String, String> enchantAliases;
     private final Map<String, String> phraseAliases;
 
@@ -80,12 +82,14 @@ public final class AliasTable {
                        Map<CommandType, Map<String, String>> valueAliases,
                        Map<String, String> itemAliases,
                        Map<String, String> gameruleAliases,
+                       Map<String, String> entityAliases,
                        Map<String, String> enchantAliases,
                        Map<String, String> phraseAliases) {
         this.verbAliases = Collections.unmodifiableMap(verbAliases);
         this.valueAliases = Collections.unmodifiableMap(valueAliases);
         this.itemAliases = Collections.unmodifiableMap(itemAliases);
         this.gameruleAliases = Collections.unmodifiableMap(gameruleAliases);
+        this.entityAliases = Collections.unmodifiableMap(entityAliases);
         this.enchantAliases = Collections.unmodifiableMap(enchantAliases);
         this.phraseAliases = Collections.unmodifiableMap(phraseAliases);
     }
@@ -298,6 +302,54 @@ public final class AliasTable {
         return Optional.ofNullable(gameruleAliases.get(key));
     }
 
+    /**
+     * 规则名模糊匹配，仅在精确失败后调用。
+     *
+     * <p>规则的中文说法特别杂（同一条 {@code naturalRegeneration} 有人叫「自然回血」、
+     * 有人叫「生命恢复」、有人叫「生命自然恢复」），表里已经收了一批同义词；
+     * 剩下的错别字靠这里兜底。
+     */
+    public Optional<Match> fuzzyGamerule(String key) {
+        return fuzzyPick(key, gameruleAliases);
+    }
+
+    /** 距离最近的若干规则名候选。 */
+    public List<String> nearestGamerules(String key, int limit) {
+        return Fuzzy.nearestList(key, gameruleAliases.keySet(), Fuzzy.autoThreshold(key) + 2, limit);
+    }
+
+    /** 全部规则名，每条规则只留最顺口的一个别名，用于候选都列不出来时的兜底。 */
+    public List<String> gameruleSuggestions() {
+        return distinctValues(gameruleAliases);
+    }
+
+    // ---------- 实体（生成指令用） ----------
+
+    /** 查实体别名（精确），如 {@code 僵尸 → minecraft:zombie}。 */
+    public Optional<String> entity(String key) {
+        return Optional.ofNullable(entityAliases.get(key));
+    }
+
+    /**
+     * 实体名模糊匹配，仅在精确失败后调用。
+     *
+     * <p>靠 {@link Fuzzy#compatible} 的「首字必须相同」把关：「坚守者」和「守卫者」
+     * 只差一个字，但首字不同，永远不会互相纠错。
+     */
+    public Optional<Match> fuzzyEntity(String key) {
+        return fuzzyPick(key, entityAliases);
+    }
+
+    /** 距离最近的若干实体候选。 */
+    public List<String> nearestEntities(String key, int limit) {
+        return Fuzzy.nearestList(key, entityAliases.keySet(), Fuzzy.autoThreshold(key) + 2, limit);
+    }
+
+    /** 全部实体名，每个实体只留最顺口的一个别名。 */
+    public List<String> entitySuggestions() {
+        return distinctValues(entityAliases);
+    }
+
     // ---------- 整句短语 ----------
 
     /**
@@ -416,7 +468,8 @@ public final class AliasTable {
 
     // ---------- 手写高频表 ----------
 
-    /** v0.1 的手写高频表（v0.2 增补同义词、游戏规则与整句短语，v0.5 增补效果 / 附魔 / 重置 / 清除）。 */
+    /** v0.1 的手写高频表（v0.2 增补同义词、游戏规则与整句短语，v0.5 增补效果 / 附魔 / 重置 / 清除，
+     * v0.8 增补规则同义词与实体表）。 */
     public static AliasTable defaultTable() {
         Map<String, CommandType> verbs = new LinkedHashMap<>();
         verbs.put("给我", CommandType.GIVE);
@@ -461,6 +514,12 @@ public final class AliasTable {
         verbs.put("xp", CommandType.XP);
         verbs.put("清除", CommandType.CLEAR);
         verbs.put("清掉", CommandType.CLEAR);
+        // 生成实体
+        verbs.put("生成", CommandType.SUMMON);
+        verbs.put("召唤", CommandType.SUMMON);
+        verbs.put("刷怪", CommandType.SUMMON);
+        verbs.put("summon", CommandType.SUMMON);
+        verbs.put("spawn", CommandType.SUMMON);
 
         Map<CommandType, Map<String, String>> values = new EnumMap<>(CommandType.class);
         values.put(CommandType.TIME, mapOf(
@@ -743,25 +802,48 @@ public final class AliasTable {
 
         // 游戏规则名。英文键必须写成小写，因为输入在 normalize 阶段已全部转小写；
         // 值必须是原版驼峰写法，原版指令参数大小写敏感。
+        //
+        // 中文说法一个人一个叫法，所以每条规则都尽量把常见叫法收全：
+        // 以 naturalRegeneration 为例，「自然回血 / 生命恢复 / 生命自然恢复 / 自动回血」
+        // 都得能命中，否则玩家只能靠猜。
         Map<String, String> gamerules = mapOf(
                 "死亡不掉落", "keepInventory",
                 "保留物品", "keepInventory",
+                "不掉落物品", "keepInventory",
+                "死亡不丢东西", "keepInventory",
                 "keepinventory", "keepInventory",
                 "生物破坏", "mobGriefing",
+                "怪物破坏", "mobGriefing",
+                "生物变方块", "mobGriefing",
                 "mobgriefing", "mobGriefing",
                 "昼夜交替", "doDaylightCycle",
+                "日夜交替", "doDaylightCycle",
+                "白天黑夜交替", "doDaylightCycle",
                 "dodaylightcycle", "doDaylightCycle",
                 "天气变化", "doWeatherCycle",
+                "天气循环", "doWeatherCycle",
                 "doweathercycle", "doWeatherCycle",
                 "自然回血", "naturalRegeneration",
+                "自然恢复", "naturalRegeneration",
+                "自然回复", "naturalRegeneration",
+                "生命恢复", "naturalRegeneration",
+                "生命回复", "naturalRegeneration",
+                "生命自然恢复", "naturalRegeneration",
+                "自动回血", "naturalRegeneration",
+                "回血", "naturalRegeneration",
                 "naturalregeneration", "naturalRegeneration",
                 "死亡消息", "showDeathMessages",
+                "死亡提示", "showDeathMessages",
                 "showdeathmessages", "showDeathMessages",
                 "怪物生成", "doMobSpawning",
+                "生物生成", "doMobSpawning",
+                "刷怪", "doMobSpawning",
                 "domobspawning", "doMobSpawning",
                 "火势蔓延", "doFireTick",
+                "火焰蔓延", "doFireTick",
                 "dofiretick", "doFireTick",
                 "立即重生", "doImmediateRespawn",
+                "立刻重生", "doImmediateRespawn",
                 "doimmediaterespawn", "doImmediateRespawn");
 
         // 附魔：中文名 → 原版附魔 ID。前缀匹配用，所以「火焰保护」必须能被
@@ -842,6 +924,89 @@ public final class AliasTable {
                 "消失诅咒", "minecraft:vanishing_curse",
                 "vanishing_curse", "minecraft:vanishing_curse");
 
+        // 实体：中文名 → 原版实体 ID，供「生成」指令用。
+        // 「坚守者」是玩家最常用的叫法，官方译名其实是「监守者」，两个都收。
+        Map<String, String> entities = mapOf(
+                // —— 敌对 ——
+                "僵尸", "minecraft:zombie",
+                "僵尸村民", "minecraft:zombie_villager",
+                "尸壳", "minecraft:husk",
+                "溺尸", "minecraft:drowned",
+                "骷髅", "minecraft:skeleton",
+                "弓箭手", "minecraft:skeleton",
+                "流浪者", "minecraft:stray",
+                "凋灵骷髅", "minecraft:wither_skeleton",
+                "苦力怕", "minecraft:creeper",
+                "爬行者", "minecraft:creeper",
+                "蜘蛛", "minecraft:spider",
+                "洞穴蜘蛛", "minecraft:cave_spider",
+                "末影人", "minecraft:enderman",
+                "小黑", "minecraft:enderman",
+                "末影螨", "minecraft:endermite",
+                "蠹虫", "minecraft:silverfish",
+                "史莱姆", "minecraft:slime",
+                "岩浆怪", "minecraft:magma_cube",
+                "恶魂", "minecraft:ghast",
+                "烈焰人", "minecraft:blaze",
+                "女巫", "minecraft:witch",
+                "掠夺者", "minecraft:pillager",
+                "卫道士", "minecraft:vindicator",
+                "唤魔者", "minecraft:evoker",
+                "幻术师", "minecraft:illusioner",
+                "劫掠兽", "minecraft:ravager",
+                "潜影贝", "minecraft:shulker",
+                "幻翼", "minecraft:phantom",
+                "监守者", "minecraft:warden",
+                "坚守者", "minecraft:warden",
+                "远古守卫者", "minecraft:elder_guardian",
+                "守卫者", "minecraft:guardian",
+                // —— 下界 ——
+                "猪灵", "minecraft:piglin",
+                "猪灵蛮兵", "minecraft:piglin_brute",
+                "疣猪兽", "minecraft:hoglin",
+                "僵尸猪灵", "minecraft:zombified_piglin",
+                "僵尸猪人", "minecraft:zombified_piglin",
+                "僵尸疣猪兽", "minecraft:zoglin",
+                // —— BOSS ——
+                "末影龙", "minecraft:ender_dragon",
+                "凋灵", "minecraft:wither",
+                // —— 友好 ——
+                "村民", "minecraft:villager",
+                "流浪商人", "minecraft:wandering_trader",
+                "铁傀儡", "minecraft:iron_golem",
+                "雪傀儡", "minecraft:snow_golem",
+                "豹猫", "minecraft:ocelot",
+                "猫", "minecraft:cat",
+                "狼", "minecraft:wolf",
+                "狗", "minecraft:wolf",
+                "狐狸", "minecraft:fox",
+                "熊猫", "minecraft:panda",
+                "北极熊", "minecraft:polar_bear",
+                "羊驼", "minecraft:llama",
+                "马", "minecraft:horse",
+                "驴", "minecraft:donkey",
+                "骡", "minecraft:mule",
+                "骷髅马", "minecraft:skeleton_horse",
+                "僵尸马", "minecraft:zombie_horse",
+                "骆驼", "minecraft:camel",
+                "猪", "minecraft:pig",
+                "牛", "minecraft:cow",
+                "哞菇", "minecraft:mooshroom",
+                "羊", "minecraft:sheep",
+                "鸡", "minecraft:chicken",
+                "兔子", "minecraft:rabbit",
+                "青蛙", "minecraft:frog",
+                "美西螈", "minecraft:axolotl",
+                "海龟", "minecraft:turtle",
+                "海豚", "minecraft:dolphin",
+                "鱿鱼", "minecraft:squid",
+                "发光鱿鱼", "minecraft:glow_squid",
+                "蜜蜂", "minecraft:bee",
+                "蝙蝠", "minecraft:bat",
+                "鹦鹉", "minecraft:parrot",
+                "山羊", "minecraft:goat",
+                "盔甲架", "minecraft:armor_stand");
+
         // 整句短语：接住「归别的指令管」或「一句顶多条指令」的说法。
         // 例：死亡不掉落属于 gamerule keepInventory，不归 gamemode 管。
         // 值里出现 \n 表示这一句要按顺序发多条指令（见 ParseResult#commands()）。
@@ -873,7 +1038,7 @@ public final class AliasTable {
                 "杀死自己", "kill @s",
                 "自杀", "kill @s");
 
-        return new AliasTable(verbs, values, items, gamerules, enchants, phrases);
+        return new AliasTable(verbs, values, items, gamerules, entities, enchants, phrases);
     }
 
     /** 小工具：用可变参数拼 Map，避免手写一串 put。 */

@@ -1,9 +1,11 @@
 package io.github.xiaoh.chatcmd.core;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -33,6 +35,11 @@ import java.util.regex.Pattern;
  * <li><b>候选列表</b>（{@link ParseResult#suggestions()}）：把几个可能的正确写法摆出来，
  * 用户点一下填回聊天框，回车前还能改。</li>
  * </ul>
+ *
+ * <p>
+ * 另有一道<b>高危闸门</b>：{@link CommandType#CLEAR} 与「重置 全部」这类不可逆指令解析成功后
+ * 不直接给 {@link ParseResult.Status#OK}，而是给 {@link ParseResult.Status#CONFIRM}，
+ * 由适配层暂存，等玩家再发一条 {@code #确认} 才真正发出去。
  */
 public final class CommandParser {
 
@@ -41,6 +48,26 @@ public final class CommandParser {
 
     /** 逃生通道前缀：{@code ##任意文本} 会去掉一个 # 后作为普通聊天发出。 */
     public static final String ESCAPE = "##";
+
+    /**
+     * 确认词：整行<b>只有</b>这些词才算「确认」，防止和正常指令抢词。
+     *
+     * <p>高危指令（见 {@link #requireConfirm}）解析成功后不会立刻执行，
+     * 而是把待执行指令交给适配层暂存，玩家再发一条这个表里的词才真发出去。
+     */
+    private static final Set<String> CONFIRM_WORDS =
+            Set.of("确认", "确定", "是", "好", "好的", "可以", "执行", "yes", "y", "ok");
+
+    /** 取消词：整行只有这些词才算「取消」，把待确认的指令丢掉。 */
+    private static final Set<String> DECLINE_WORDS =
+            Set.of("取消", "算了", "不要", "否", "不", "no", "n");
+
+    /** 高危指令确认界面上的可点击候选（会拼上触发前缀）。 */
+    private static final List<String> CONFIRM_SUGGESTIONS =
+            List.of(TRIGGER + "确认", TRIGGER + "取消");
+
+    /** 「生成」一次最多生成几个：原版 /summon 一次只能一个，数量大了回显会把聊天框刷爆。 */
+    private static final int MAX_SUMMON = 16;
 
     /** 坐标：支持 {@code ~} / {@code ~5} / {@code ~-3} / {@code 100} / {@code -64.5}。 */
     private static final Pattern COORD = Pattern.compile("^(~|~?-?\\d+(\\.\\d+)?)$");
@@ -129,6 +156,14 @@ public final class CommandParser {
         if (body.isEmpty()) {
             return ParseResult.error(ParseResult.Status.UNKNOWN_VERB,
                     "在 # 后面写上指令，例如 " + CommandType.GIVE.usage());
+        }
+
+        // 2b. 高危指令的二次确认回话：整行就是「确认」或「取消」
+        if (CONFIRM_WORDS.contains(body)) {
+            return ParseResult.confirmAccept();
+        }
+        if (DECLINE_WORDS.contains(body)) {
+            return ParseResult.confirmDecline();
         }
 
         // 3. 整句短语精确匹配：口语整句 → 完整指令（如「死亡不掉落」「永为白昼」）
@@ -290,17 +325,85 @@ public final class CommandParser {
 
     /** 按指令类型组装。{@code input} 是归一化后的整行输入，用来拼可点击候选。 */
     private ParseResult assemble(CommandType type, List<String> args, String note, String input) {
-        return switch (type) {
+        // 组装出结果后统一过高危闸门：CLEAR 与「重置 全部」会转成待确认状态
+        return requireConfirm(type, switch (type) {
             case GIVE -> assembleGive(args, note, input);
             case TP -> assembleTp(args);
             case GAMERULE -> assembleGamerule(args, note, input);
             case TIME, GAMEMODE, WEATHER, DIFFICULTY, CLEAR, LOCATE -> assembleEnum(type, args, note, input);
+            case SUMMON -> assembleSummon(args, note, input);
             case RESET -> assembleReset(args, note, input);
             case EFFECT -> assembleEffect(args, note, input);
             case ENCHANT -> assembleEnchant(args, note, input);
             case ENCHANT_HELD -> assembleEnchantHeld(args, note, input);
             case XP -> assembleXp(args);
-        };
+        });
+    }
+
+    // ---------- 高危指令的二次确认 ----------
+
+    /**
+     * 高危指令统一加一道「二次确认」闸门。
+     *
+     * <p>判据是<b>真会批量删东西</b>的动词：{@link CommandType#CLEAR}（取值全是 {@code kill @e}）
+     * 和「重置 全部」（把时间 / 天气 / 效果 / 规则一次性还原）。其余指令不拦，照旧一步到位。
+     *
+     * <p>为什么要拦：{@code #清除 怪物} 生成的是
+     * {@code kill @e[type=!player,type=!minecraft:item,type=!minecraft:experience_orb]} ——
+     * 原版没有「只杀敌对生物」的选择器，动物、村民、宠物会一起被清掉。
+     * 新手以为只清怪物，一次误操作就没了。
+     *
+     * @return 命中高危时返回 {@link ParseResult.Status#CONFIRM}（载荷与成功时相同，只是先不执行）
+     */
+    private ParseResult requireConfirm(CommandType type, ParseResult result) {
+        if (!result.isOk()) {
+            return result;
+        }
+        String danger = dangerNote(type, result.payload());
+        if (danger == null) {
+            return result;
+        }
+        StringBuilder shown = new StringBuilder();
+        for (String command : result.commands()) {
+            if (shown.length() > 0) {
+                shown.append("  ");
+            }
+            shown.append('/').append(command);
+        }
+        return ParseResult.confirm(result.payload(),
+                (result.hint().isEmpty() ? "" : result.hint() + "；")
+                        + "高危指令，先确认再执行：将执行 " + shown
+                        + "。" + danger
+                        + "。确认无误请再发一条 #确认；发别的指令即作废",
+                CONFIRM_SUGGESTIONS);
+    }
+
+    /**
+     * 这条指令危险在哪 —— 返回 {@code null} 表示不危险，无需确认。
+     *
+     * <p>文案按<b>实际生成的指令</b>给，不按动词给：{@code #清除 怪物} 和 {@code #清除 掉落物}
+     * 都是「清除」，后果却完全不同，警告必须说准。
+     */
+    private String dangerNote(CommandType type, String payload) {
+        if (type == CommandType.RESET) {
+            return payload.equals(aliasTable.resetAll())
+                    ? "会把时间、天气、效果、规则一起还原成原版默认值"
+                    : null;
+        }
+        if (type != CommandType.CLEAR) {
+            return null;
+        }
+        if (payload.contains("type=!player")) {
+            return "会清掉除玩家、掉落物、经验球之外的所有实体 —— 原版没有「只杀敌对生物」的"
+                    + "选择器，动物、村民、已驯服的宠物也会一起被清掉";
+        }
+        if (payload.contains("experience_orb")) {
+            return "会清掉地上全部经验球";
+        }
+        if (payload.contains("minecraft:item")) {
+            return "会清掉地上全部掉落物";
+        }
+        return "会清空身上全部药水效果";
     }
 
     /** 枚举类：查值别名表，精确失败后模糊兜底，再失败就把候选列出来让用户点。 */
@@ -471,7 +574,26 @@ public final class CommandParser {
 
     /** 游戏规则：{@code gamerule <rule> <true|false>}，规则名与开关都支持中文别名。 */
     private ParseResult assembleGamerule(List<String> args, String note, String input) {
-        String rule = aliasTable.gamerule(args.get(0)).orElse(args.get(0));
+        String ruleRaw = args.get(0);
+        // 规则名的中文说法一路同义词 + 一路模糊兜底：同一条 naturalRegeneration
+        // 有人叫「自然回血」有人叫「生命恢复」，精确表收同义词，错别字交给编辑距离。
+        Optional<String> rule = aliasTable.gamerule(ruleRaw);
+        if (rule.isEmpty()) {
+            Optional<AliasTable.Match> fuzzy = aliasTable.fuzzyGamerule(ruleRaw);
+            if (fuzzy.isPresent()) {
+                rule = Optional.of(fuzzy.get().value());
+                note = join(note, fuzzyNote(fuzzy.get().key()));
+            }
+        }
+        if (rule.isEmpty()) {
+            List<String> candidates = aliasTable.nearestGamerules(ruleRaw, 5);
+            if (candidates.isEmpty()) {
+                candidates = aliasTable.gameruleSuggestions();
+            }
+            return ParseResult.error(ParseResult.Status.UNKNOWN_VALUE,
+                    "不认识规则「" + ruleRaw + "」。用法：" + CommandType.GAMERULE.usage(),
+                    suggestionsFor(input, ruleRaw, candidates));
+        }
 
         String boolRaw = args.get(1);
         Optional<String> boolValue = aliasTable.value(CommandType.GAMERULE, boolRaw);
@@ -488,7 +610,90 @@ public final class CommandParser {
                     suggestionsFor(input, boolRaw, aliasTable.valueSuggestions(CommandType.GAMERULE)));
         }
         return ParseResult.ok(
-                CommandType.GAMERULE.commandPrefix() + " " + rule + " " + boolValue.get(), note);
+                CommandType.GAMERULE.commandPrefix() + " " + rule.get() + " " + boolValue.get(), note);
+    }
+
+    /**
+     * 生成实体：{@code summon <entity> [数量] [x y z]}。
+     *
+     * <p>支持三种参数写法：
+     * <ol>
+     *   <li>{@code #生成 僵尸} —— 就在自己脚下生成一个</li>
+     *   <li>{@code #生成 僵尸 5} —— 生成 5 个（原版一次只能一个，所以拆成 5 条依次发）</li>
+     *   <li>{@code #生成 僵尸 ~ ~1 ~} —— 生成在指定坐标</li>
+     * </ol>
+     */
+    private ParseResult assembleSummon(List<String> args, String note, String input) {
+        String entityRaw = args.get(0);
+        Optional<String> entity = resolveEntityExact(entityRaw);
+        if (entity.isEmpty()) {
+            Optional<AliasTable.Match> fuzzy = aliasTable.fuzzyEntity(entityRaw);
+            if (fuzzy.isPresent()) {
+                entity = Optional.of(fuzzy.get().value());
+                note = join(note, fuzzyNote(fuzzy.get().key()));
+            }
+        }
+        if (entity.isEmpty()) {
+            List<String> candidates = aliasTable.nearestEntities(entityRaw, 5);
+            if (candidates.isEmpty()) {
+                candidates = aliasTable.entitySuggestions();
+            }
+            return ParseResult.error(ParseResult.Status.UNKNOWN_VALUE,
+                    "不认识实体「" + entityRaw + "」。用法：" + CommandType.SUMMON.usage(),
+                    suggestionsFor(input, entityRaw, candidates));
+        }
+
+        List<String> rest = args.subList(1, args.size());
+        int count = 1;
+        String position = "";
+        if (rest.size() == 3 && rest.stream().allMatch(arg -> COORD.matcher(arg).matches())) {
+            position = " " + String.join(" ", rest);
+        } else if (rest.size() == 1 && COUNT.matcher(rest.get(0)).matches()) {
+            try {
+                count = Integer.parseInt(rest.get(0));
+            } catch (NumberFormatException e) {
+                return ParseResult.error(ParseResult.Status.BAD_ARGS,
+                        "数量「" + rest.get(0) + "」超出范围。用法：" + CommandType.SUMMON.usage());
+            }
+            if (count < 1) {
+                return ParseResult.error(ParseResult.Status.BAD_ARGS,
+                        "数量必须是正整数。用法：" + CommandType.SUMMON.usage());
+            }
+            if (count > MAX_SUMMON) {
+                return ParseResult.error(ParseResult.Status.BAD_ARGS,
+                        "一次最多生成 " + MAX_SUMMON + " 个（原版 /summon 一次只能生成一个，"
+                                + "数量多了会刷屏）。用法：" + CommandType.SUMMON.usage());
+            }
+        } else if (!rest.isEmpty()) {
+            return ParseResult.error(ParseResult.Status.BAD_ARGS,
+                    "参数不对。用法：" + CommandType.SUMMON.usage());
+        }
+
+        String single = CommandType.SUMMON.commandPrefix() + " " + entity.get() + position;
+        if (count == 1) {
+            return ParseResult.ok(single, note);
+        }
+        note = join(note, "原版 /summon 一次只能生成一个，已拆成 " + count + " 条依次执行");
+        return ParseResult.ok(String.join(ParseResult.COMMAND_SEPARATOR,
+                Collections.nCopies(count, single)), note);
+    }
+
+    /**
+     * 实体精确匹配：手工别名表 → 看起来像原版 ID 就原样透传。
+     *
+     * <p>透传是为了让模组实体（例如 {@code 某整合包:某某boss}）也能用；
+     * 中文名一律走表，认不出就报错并列候选，绝不硬拼成 {@code minecraft:僵尸} 丢给服务端。
+     */
+    private Optional<String> resolveEntityExact(String raw) {
+        Optional<String> fromTable = aliasTable.entity(raw);
+        if (fromTable.isPresent()) {
+            return fromTable;
+        }
+        if (!RAW_ID.matcher(raw).matches()) {
+            return Optional.empty();
+        }
+        String id = raw.replace(' ', '_');
+        return Optional.of(id.contains(":") ? id : "minecraft:" + id);
     }
 
     /** 传送：{@code tp @s <x> <y> <z>}。 */

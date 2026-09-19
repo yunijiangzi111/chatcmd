@@ -4,7 +4,15 @@
 
 ## ChatCmd 聊天指令
 
-当前版本：**0.7.0** · 完整文档见 [README.md](README.md)
+当前版本：**0.8.0** · 完整文档见 [README.md](README.md)
+
+### 0.8.0 —— 2026-09-19
+
+- **高危指令二次确认**：`#清除 ...` 与 `#重置 全部`（含省略参数）不再直接执行，而是先弹一条黄色警告，明说这条指令真正会清掉哪些东西，再发一条 `#确认` 才执行；发别的指令即作废，`#取消` 可主动放弃
+- 新增**生成**指令：`#生成 僵尸`、`#生成 坚守者 3`、`#生成 末影龙 ~ ~5 ~`（动词别名：生成、召唤、刷怪、`summon`、`spawn`），收约 80 个实体别名；原版 `/summon` 一次只能生成一个，数量大于 1 时自动拆成多条依次发出
+- **规则**指令补全口语同义词，一条规则尽量把常见叫法收全：`naturalRegeneration` 现在「自然回血 / 自然恢复 / 自然回复 / 生命恢复 / 生命回复 / 生命自然恢复 / 自动回血 / 回血」都能命中；另有「不掉落物品 / 死亡不丢东西」「怪物破坏 / 生物变方块」「日夜交替 / 白天黑夜交替」「天气循环」「死亡提示」「生物生成 / 刷怪」「火焰蔓延」「立刻重生」
+- 规则名支持**模糊纠错 + 可点击候选**，认不出时在本地报错；取消了旧的「原样透传」行为（输入已转小写，透传出去的驼峰规则名本来也无法生效）
+- 实体名模糊纠错沿用「书写系统一致 + 首字符相同」双保险：「坚守者」与「守卫者」只差一个字，但首字不同，永远不会互相误纠
 
 ### 0.7.0 —— 2026-09-19
 
@@ -82,7 +90,15 @@ To download a ready-to-use jar, head to the [Releases](https://github.com/yuniji
 
 ## ChatCmd
 
-Current version: **0.7.0** · Full documentation in [README.md](README.md)
+Current version: **0.8.0** · Full documentation in [README.md](README.md)
+
+### 0.8.0 — 2026-09-19
+
+- **Second confirmation for high-risk commands**: `#清除 ...` and `#重置 全部` (including when the argument is omitted) no longer run immediately. Instead a yellow warning explains exactly what the command will really delete, and you must send `#确认` again to run it. Any other input cancels it; `#取消` declines on purpose
+- Added the **summon** command: `#生成 僵尸`, `#生成 坚守者 3`, `#生成 末影龙 ~ ~5 ~` (verb aliases: 生成, 召唤, 刷怪, `summon`, `spawn`), with roughly 80 entity aliases. Vanilla `/summon` spawns only one entity per command, so a count greater than 1 is automatically split into several commands sent in sequence
+- The **gamerule** command now collects the common colloquial names for each rule: `naturalRegeneration` is matched by 自然回血 / 自然恢复 / 自然回复 / 生命恢复 / 生命回复 / 生命自然恢复 / 自动回血 / 回血; also added 不掉落物品 / 死亡不丢东西, 怪物破坏 / 生物变方块, 日夜交替 / 白天黑夜交替, 天气循环, 死亡提示, 生物生成 / 刷怪, 火焰蔓延 and 立刻重生
+- Rule names now support **fuzzy correction plus clickable candidates**, and report an error locally when nothing matches; the old "pass through as is" behaviour was removed (input is lowercased anyway, so a passed-through camelCase rule name could never work)
+- Entity fuzzy matching keeps the "same writing system + same first character" double safeguard: 坚守者 and 守卫者 differ by one character but not in their first character, so they are never corrected into each other
 
 ### 0.7.0 — 2026-09-19
 

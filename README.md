@@ -2,7 +2,7 @@
 
 用中文在聊天框里下达 Minecraft 指令。输入 `#给我1个钻石剑`，模组会把它翻译成原版指令 `/give @s minecraft:diamond_sword 1`，并以你自己的身份发出去。
 
-当前版本：**0.7.0**
+当前版本：**0.8.0**
 
 中文 | [English](#english)
 
@@ -32,8 +32,8 @@ ChatCmd 是一个 Minecraft **客户端模组（client-side mod）**，它拦截
 
 | 你要玩的版本 | 装哪个 jar | 需要的前置 |
 | --- | --- | --- |
-| Minecraft **1.21.1** | `chatcmd-0.7.0-neoforge+mc1.21.1.jar` | NeoForge（一个 Minecraft 模组加载器）**21.1.228** 或更高 |
-| Minecraft **1.20.1** | `chatcmd-0.7.0-forge+mc1.20.1.jar` | Forge（另一个 Minecraft 模组加载器）**47.3.0** 或更高 |
+| Minecraft **1.21.1** | `chatcmd-0.8.0-neoforge+mc1.21.1.jar` | NeoForge（一个 Minecraft 模组加载器）**21.1.228** 或更高 |
+| Minecraft **1.20.1** | `chatcmd-0.8.0-forge+mc1.20.1.jar` | Forge（另一个 Minecraft 模组加载器）**47.3.0** 或更高 |
 
 Java（一种编程语言运行环境）随游戏自带，两个版本都不需要单独安装。
 
@@ -202,24 +202,29 @@ Java（一种编程语言运行环境）随游戏自带，两个版本都不需�
 
 | 中文规则名（别名） | 原版规则名 |
 | --- | --- |
-| 死亡不掉落、保留物品、`keepinventory` | `keepInventory` |
-| 生物破坏、`mobgriefing` | `mobGriefing` |
-| 昼夜交替、`dodaylightcycle` | `doDaylightCycle` |
-| 天气变化、`doweathercycle` | `doWeatherCycle` |
-| 自然回血、`naturalregeneration` | `naturalRegeneration` |
-| 死亡消息、`showdeathmessages` | `showDeathMessages` |
-| 怪物生成、`domobspawning` | `doMobSpawning` |
-| 火势蔓延、`dofiretick` | `doFireTick` |
-| 立即重生、`doimmediaterespawn` | `doImmediateRespawn` |
+| 死亡不掉落、保留物品、不掉落物品、死亡不丢东西、`keepinventory` | `keepInventory` |
+| 生物破坏、怪物破坏、生物变方块、`mobgriefing` | `mobGriefing` |
+| 昼夜交替、日夜交替、白天黑夜交替、`dodaylightcycle` | `doDaylightCycle` |
+| 天气变化、天气循环、`doweathercycle` | `doWeatherCycle` |
+| 自然回血、自然恢复、自然回复、生命恢复、生命回复、生命自然恢复、自动回血、回血、`naturalregeneration` | `naturalRegeneration` |
+| 死亡消息、死亡提示、`showdeathmessages` | `showDeathMessages` |
+| 怪物生成、生物生成、刷怪、`domobspawning` | `doMobSpawning` |
+| 火势蔓延、火焰蔓延、`dofiretick` | `doFireTick` |
+| 立即重生、立刻重生、`doimmediaterespawn` | `doImmediateRespawn` |
 
 开关取值：`开`、`开启`、`打开`、`启用`、`是`、`true`、`on` → `true`；`关`、`关闭`、`关掉`、`禁用`、`否`、`false`、`off` → `false`。
 
-表里没有的规则名会**原样透传**（不做模糊纠错）。注意输入在归一化阶段已经转成小写，所以透传出去的规则名也是小写 —— 原版那些驼峰命名的规则请优先用中文别名或上表里的英文别名。
+同一条规则一个人一个叫法，「自然回血」和「生命恢复」其实是同一条 `naturalRegeneration`，所以上表把常见叫法尽量收全了。
+
+表里都没有时还会走一步**模糊纠错**：打错一个字会被自动纠正，并在回显里用黄色文字明说纠成了什么。例如 `#规则 死亡不掉洛 开` 会被纠成「死亡不掉落」。
+
+连模糊纠错也认不出时，**在本地报错并列出可点击候选**，绝不把认不出的规则名原样透传出去 —— 输入在归一化阶段已经转成小写，原版那些驼峰命名的规则透传出去本来就无法生效，你只会收到一句莫名其妙的「未知的游戏规则」。
 
 | 你输入 | 实际发出 |
 | --- | --- |
 | `#规则 死亡不掉落 开` | `/gamerule keepInventory true` |
 | `#规则 昼夜交替 关` | `/gamerule doDaylightCycle false` |
+| `#规则 生命恢复 开` | `/gamerule naturalRegeneration true` |
 
 ### 重置（reset）
 
@@ -236,6 +241,8 @@ Java（一种编程语言运行环境）随游戏自带，两个版本都不需�
 | 全部、所有、一切（或省略参数） | 以上全部，共 6 条指令 |
 
 「时间」是把昼夜交替重新打开，用来结束「永为白昼 / 永为黑夜」。
+
+**「全部」（含省略参数）属于高危指令，需要二次确认**：发出去后不会立刻执行，而是先弹一条黄色警告说明将要执行哪几条指令，再发一条 `#确认` 才真正执行（见下文「高危指令的二次确认」）。其余取值（时间 / 天气 / 效果 / 规则）影响范围有限，直接执行。
 
 ### 效果（effect）
 
@@ -362,6 +369,8 @@ Java（一种编程语言运行环境）随游戏自带，两个版本都不需�
 
 注意「怪物」这一项：原版没有「只杀敌对生物」的选择器，所以它排除玩家、掉落物和经验球之后把**剩下的全部**清掉 —— 动物和村民也会被一起清掉。
 
+**所有 `#清除` 都属于高危指令，需要二次确认**：发出去后不会立刻执行，而是先弹一条黄色警告，告诉你这条指令真正会清掉哪些东西（例如「怪物」那一条会明确说「动物、村民、已驯服的宠物也会一起被清掉」），再发一条 `#确认` 才真正执行（见下文「高危指令的二次确认」）。
+
 这个动词**禁止模糊纠错**（见下文「规则与安全设计」）。
 
 ### 找（locate structure）
@@ -412,6 +421,34 @@ Java（一种编程语言运行环境）随游戏自带，两个版本都不需�
 | `#最近的村庄` | `/locate structure #minecraft:village` |
 
 查找成功后，模组会额外给出**一行可点击的坐标**：绿色带下划线，鼠标悬停显示「点击直接传送到 x ~ z」，**单击立刻传送**（`/tp @s x ~ z`）。纵坐标沿用原版回执里的 `~`，保持玩家当前高度。
+
+### 生成（summon）
+
+动词别名：`生成`、`召唤`、`刷怪`、`summon`、`spawn`
+
+用法：`#生成 <实体> [数量] [x y z]`
+
+| 你输入 | 实际发出 |
+| --- | --- |
+| `#生成 僵尸` | `/summon minecraft:zombie` |
+| `#生成 坚守者 3` | `/summon minecraft:warden`、共 3 条 |
+| `#生成 末影龙 ~ ~5 ~` | `/summon minecraft:ender_dragon ~ ~5 ~` |
+| `#召唤 苦力怕 2 ~ ~2 ~` | `/summon minecraft:creeper ~ ~2 ~`、共 2 条 |
+
+原版 `/summon` 一次只能生成一个实体，所以数量大于 1 时会**自动拆成多条指令依次发出**，并在回显里说明。为免刷屏，数量上限为 **16**。
+
+不写坐标时在玩家脚下生成；坐标支持与 `#传送` 完全相同的写法（绝对坐标 `100 64 100`、相对坐标 `~ ~5 ~-3`、逗号分隔 `100,64,100`）。
+
+| 分类 | 支持的实体名（别名） |
+| --- | --- |
+| 敌对 | 僵尸、僵尸村民、尸壳、溺尸、骷髅、弓箭手、流浪者、凋灵骷髅、苦力怕、爬行者、蜘蛛、洞穴蜘蛛、末影人、小黑、末影螨、蠹虫、史莱姆、岩浆怪、恶魂、烈焰人、女巫、掠夺者、卫道士、唤魔者、幻术师、劫掠兽、潜影贝、幻翼、监守者、坚守者、远古守卫者、守卫者 |
+| 下界 | 猪灵、猪灵蛮兵、疣猪兽、僵尸猪灵、僵尸猪人、僵尸疣猪兽 |
+| BOSS | 末影龙、凋灵 |
+| 友好 | 村民、流浪商人、铁傀儡、雪傀儡、豹猫、猫、狼、狗、狐狸、熊猫、北极熊、羊驼、马、驴、骡、骷髅马、僵尸马、骆驼、猪、牛、哞菇、羊、鸡、兔子、青蛙、美西螈、海龟、海豚、鱿鱼、发光鱿鱼、蜜蜂、蝙蝠、鹦鹉、山羊、盔甲架 |
+
+注意「监守者」和「坚守者」是同一个实体的两种叫法（官方译名是「监守者」，「坚守者」是玩家的习惯叫法），都指向 `minecraft:warden`。
+
+实体名也支持模糊纠错。「坚守者」和「守卫者」只差一个字，但首字符不同，所以永远不会互相误纠 —— 模糊纠错要求「书写系统一致 + 首字符相同」（见下文「规则与安全设计」）。认不出时在本地报错并列出可点击候选。
 
 ### 整句短语
 
@@ -493,6 +530,24 @@ Java（一种编程语言运行环境）随游戏自带，两个版本都不需�
 ```
 
 不会有「悄悄替你改一个字然后照常执行」的情况。
+
+### 高危指令的二次确认
+
+会造成**大面积不可逆破坏**的指令不会一发出就执行，而是先要你点个头。目前需要确认的有两类：
+
+- **所有 `#清除`**（掉落物 / 经验球 / 效果 / 怪物）；
+- **`#重置 全部`**，包括不写参数的 `#重置`。
+
+流程是「**一条警告 + 再发一条 `#确认`**」：
+
+1. 你发出高危指令，此时**什么都不执行**；
+2. 模组用**黄色**文字回一条警告，说明这条指令真正会做什么（警告文案按实际要发的指令生成，说的都是真话），并附一行可点击的 `#确认` / `#取消`；
+3. 你再发一条 `#确认`，才真正执行；发 `#取消`（或 `取消`、`算了`、`不要`、`no` 等）则放弃；
+4. 在这之间发了**任何别的指令**，待确认状态立即作废 —— 不会出现「过了十条指令之后突然被执行」的情况。
+
+以 `#清除 怪物` 为例，因为原版没有「只杀敌对生物」的选择器，警告会明确写出它会连动物、村民、驯服的宠物一起清掉，而不是只说一句「确定吗？」。
+
+「确认」这一步允许的口语：`确认`、`确定`、`是`、`好`、`好的`、`可以`、`执行`、`yes`、`y`、`ok`。
 
 ### 危险动词禁止模糊纠错
 
@@ -590,10 +645,10 @@ gradlew.bat :core:test
 构建模组 jar：
 
 ```bat
-:: NeoForge（1.21.1）→ neoforge/build/libs/chatcmd-0.7.0-neoforge+mc1.21.1.jar
+:: NeoForge（1.21.1）→ neoforge/build/libs/chatcmd-0.8.0-neoforge+mc1.21.1.jar
 gradlew.bat :neoforge:jar
 
-:: Forge（1.20.1）→ forge/build/libs/chatcmd-0.7.0-forge+mc1.20.1.jar
+:: Forge（1.20.1）→ forge/build/libs/chatcmd-0.8.0-forge+mc1.20.1.jar
 gradlew.bat :forge:reobfJar
 ```
 
@@ -635,7 +690,7 @@ CI（持续集成）会自动构建并把**两个平台**的成品 jar 一起挂
 
 Use Chinese in the chat box to issue Minecraft commands. Type `#给我1个钻石剑` and the mod translates it into the vanilla command `/give @s minecraft:diamond_sword 1`, then sends it as you.
 
-Current version: **0.7.0**
+Current version: **0.8.0**
 
 [中文](#chatcmd-聊天指令) | English
 
@@ -663,8 +718,8 @@ Both platforms are provided:
 
 | The version you play | Which jar to install | Required mod loader |
 | --- | --- | --- |
-| Minecraft **1.21.1** | `chatcmd-0.7.0-neoforge+mc1.21.1.jar` | NeoForge **21.1.228** or newer |
-| Minecraft **1.20.1** | `chatcmd-0.7.0-forge+mc1.20.1.jar` | Forge **47.3.0** or newer |
+| Minecraft **1.21.1** | `chatcmd-0.8.0-neoforge+mc1.21.1.jar` | NeoForge **21.1.228** or newer |
+| Minecraft **1.20.1** | `chatcmd-0.8.0-forge+mc1.20.1.jar` | Forge **47.3.0** or newer |
 
 Java ships with the game, so no separate install is needed for either version.
 
@@ -833,24 +888,29 @@ Usage: `#规则 <rule> <开|关>`
 
 | Chinese rule name (aliases) | Vanilla rule name |
 | --- | --- |
-| 死亡不掉落, 保留物品, `keepinventory` | `keepInventory` |
-| 生物破坏, `mobgriefing` | `mobGriefing` |
-| 昼夜交替, `dodaylightcycle` | `doDaylightCycle` |
-| 天气变化, `doweathercycle` | `doWeatherCycle` |
-| 自然回血, `naturalregeneration` | `naturalRegeneration` |
-| 死亡消息, `showdeathmessages` | `showDeathMessages` |
-| 怪物生成, `domobspawning` | `doMobSpawning` |
-| 火势蔓延, `dofiretick` | `doFireTick` |
-| 立即重生, `doimmediaterespawn` | `doImmediateRespawn` |
+| 死亡不掉落, 保留物品, 不掉落物品, 死亡不丢东西, `keepinventory` | `keepInventory` |
+| 生物破坏, 怪物破坏, 生物变方块, `mobgriefing` | `mobGriefing` |
+| 昼夜交替, 日夜交替, 白天黑夜交替, `dodaylightcycle` | `doDaylightCycle` |
+| 天气变化, 天气循环, `doweathercycle` | `doWeatherCycle` |
+| 自然回血, 自然恢复, 自然回复, 生命恢复, 生命回复, 生命自然恢复, 自动回血, 回血, `naturalregeneration` | `naturalRegeneration` |
+| 死亡消息, 死亡提示, `showdeathmessages` | `showDeathMessages` |
+| 怪物生成, 生物生成, 刷怪, `domobspawning` | `doMobSpawning` |
+| 火势蔓延, 火焰蔓延, `dofiretick` | `doFireTick` |
+| 立即重生, 立刻重生, `doimmediaterespawn` | `doImmediateRespawn` |
 
 Switch values: `开`, `开启`, `打开`, `启用`, `是`, `true`, `on` -> `true`; `关`, `关闭`, `关掉`, `禁用`, `否`, `false`, `off` -> `false`.
 
-Rule names not in the table are **passed through as is** (no fuzzy correction). Note that input is lowercased during normalization, so a passed-through rule name is lowercase too — for vanilla rules written in camelCase, prefer the Chinese alias or the English alias in the table above.
+Everyone has their own name for the same rule — 自然回血 and 生命恢复 are both `naturalRegeneration` — so the table above tries to collect every common phrasing.
+
+If none of them match, one more step runs: **fuzzy correction**. A single typo is corrected automatically and the reply says in yellow what it was corrected to. For example `#规则 死亡不掉洛 开` is corrected to 死亡不掉落.
+
+When even fuzzy correction finds nothing, the mod **reports the error locally and lists clickable candidates**. It never passes an unrecognized rule name through as is — input is lowercased during normalization, so a passed-through camelCase rule name could never work anyway; all you would get back is a puzzling "unknown game rule".
 
 | You type | Actually sent |
 | --- | --- |
 | `#规则 死亡不掉落 开` | `/gamerule keepInventory true` |
 | `#规则 昼夜交替 关` | `/gamerule doDaylightCycle false` |
+| `#规则 生命恢复 开` | `/gamerule naturalRegeneration true` |
 
 ### reset
 
@@ -867,6 +927,8 @@ Usage: `#重置 [时间|天气|效果|规则|全部]`. Omitting the argument is 
 | 全部, 所有, 一切 (or omit the argument) | All of the above, 6 commands in total |
 
 "时间" turns the daylight cycle back on, which is how you end "永为白昼 / 永为黑夜" (always day / always night).
+
+**`全部` (all), including when the argument is omitted, is a high-risk command and needs a second confirmation**: it does not run immediately. A yellow warning first explains which commands are about to run, and you must send `#确认` to actually run them (see "Second confirmation for high-risk commands" below). The other values (时间 / 天气 / 效果 / 规则) have limited impact and run directly.
 
 ### effect
 
@@ -993,6 +1055,8 @@ Usage: `#清除 <掉落物|经验球|怪物>`
 
 Note the "怪物" entry: vanilla has no selector for "hostile mobs only", so it excludes players, dropped items and experience orbs and kills **everything else** — animals and villagers are removed too.
 
+**Every `#清除` is a high-risk command and needs a second confirmation**: it does not run immediately. A yellow warning first tells you what the command will really delete (for the "怪物" entry it states explicitly that animals, villagers and tamed pets are removed as well), and you must send `#确认` to actually run it (see "Second confirmation for high-risk commands" below).
+
 Fuzzy correction is **disabled** for this verb (see "Rules and Safety Design").
 
 ### locate structure
@@ -1043,6 +1107,34 @@ Where a structure tag is available it is preferred, so "村庄" finds all varian
 | `#最近的村庄` | `/locate structure #minecraft:village` |
 
 After a successful lookup the mod prints an extra **clickable coordinate line**: green and underlined, with the hover text "点击直接传送到 x ~ z" (click to teleport to x ~ z). A single click **teleports immediately** (`/tp @s x ~ z`). The vertical coordinate reuses the `~` from the vanilla reply, keeping your current height.
+
+### summon
+
+Verb aliases: `生成`, `召唤`, `刷怪`, `summon`, `spawn`
+
+Usage: `#生成 <entity> [count] [x y z]`
+
+| You type | Actually sent |
+| --- | --- |
+| `#生成 僵尸` | `/summon minecraft:zombie` |
+| `#生成 坚守者 3` | `/summon minecraft:warden`, 3 commands in total |
+| `#生成 末影龙 ~ ~5 ~` | `/summon minecraft:ender_dragon ~ ~5 ~` |
+| `#召唤 苦力怕 2 ~ ~2 ~` | `/summon minecraft:creeper ~ ~2 ~`, 2 commands in total |
+
+Vanilla `/summon` spawns only one entity per command, so a count greater than 1 is **automatically split into several commands sent in sequence**, and the reply says so. To avoid flooding the chat, the count is capped at **16**.
+
+Without coordinates the entity spawns at the player's feet. Coordinates accept exactly the same forms as `#传送` (absolute `100 64 100`, relative `~ ~5 ~-3`, comma-separated `100,64,100`).
+
+| Group | Supported entity names (aliases) |
+| --- | --- |
+| Hostile | 僵尸, 僵尸村民, 尸壳, 溺尸, 骷髅, 弓箭手, 流浪者, 凋灵骷髅, 苦力怕, 爬行者, 蜘蛛, 洞穴蜘蛛, 末影人, 小黑, 末影螨, 蠹虫, 史莱姆, 岩浆怪, 恶魂, 烈焰人, 女巫, 掠夺者, 卫道士, 唤魔者, 幻术师, 劫掠兽, 潜影贝, 幻翼, 监守者, 坚守者, 远古守卫者, 守卫者 |
+| Nether | 猪灵, 猪灵蛮兵, 疣猪兽, 僵尸猪灵, 僵尸猪人, 僵尸疣猪兽 |
+| Boss | 末影龙, 凋灵 |
+| Passive | 村民, 流浪商人, 铁傀儡, 雪傀儡, 豹猫, 猫, 狼, 狗, 狐狸, 熊猫, 北极熊, 羊驼, 马, 驴, 骡, 骷髅马, 僵尸马, 骆驼, 猪, 牛, 哞菇, 羊, 鸡, 兔子, 青蛙, 美西螈, 海龟, 海豚, 鱿鱼, 发光鱿鱼, 蜜蜂, 蝙蝠, 鹦鹉, 山羊, 盔甲架 |
+
+Note that 监守者 and 坚守者 are two names for the same entity (the official translation is 监守者, while 坚守者 is what players usually say); both map to `minecraft:warden`.
+
+Entity names support fuzzy correction too. 坚守者 and 守卫者 differ by one character but not in their first character, so they are never corrected into each other — fuzzy correction requires the same writing system **and** the same first character (see "Rules and Safety Design" below). When nothing matches, the mod reports the error locally and lists clickable candidates.
 
 ### Whole-sentence phrases
 
@@ -1124,6 +1216,24 @@ Whenever fuzzy matching hits and a command is executed automatically, the mod al
 ```
 
 There is no case where it quietly changes a character and carries on as if nothing happened.
+
+### Second confirmation for high-risk commands
+
+Commands that cause **large-scale irreversible damage** do not run the moment you send them; they ask you to nod first. Two groups currently need confirmation:
+
+- **every `#清除`** (dropped items / experience orbs / effects / mobs);
+- **`#重置 全部`**, including a bare `#重置` with no argument.
+
+The flow is "**one warning + send `#确认` again**":
+
+1. You send the high-risk command and **nothing runs**;
+2. The mod replies in **yellow** with a warning stating what the command will really do (the wording is generated from the commands about to be sent, so it always tells the truth), plus a clickable `#确认` / `#取消` line;
+3. You send `#确认` and only then does it run; `#取消` (or 取消, 算了, 不要, `no`, ...) declines;
+4. Sending **any other command** in between cancels the pending state at once — there is no way for it to suddenly fire ten commands later.
+
+Taking `#清除 怪物` as an example: since vanilla has no "hostile mobs only" selector, the warning states explicitly that animals, villagers and tamed pets are removed as well, instead of a vague "are you sure?".
+
+Accepted replies for the confirmation step: `确认`, `确定`, `是`, `好`, `好的`, `可以`, `执行`, `yes`, `y`, `ok`.
 
 ### Fuzzy correction disabled for dangerous verbs
 
@@ -1221,10 +1331,10 @@ gradlew.bat :core:test
 Build the mod jar:
 
 ```bat
-:: NeoForge (1.21.1) -> neoforge/build/libs/chatcmd-0.7.0-neoforge+mc1.21.1.jar
+:: NeoForge (1.21.1) -> neoforge/build/libs/chatcmd-0.8.0-neoforge+mc1.21.1.jar
 gradlew.bat :neoforge:jar
 
-:: Forge (1.20.1) -> forge/build/libs/chatcmd-0.7.0-forge+mc1.20.1.jar
+:: Forge (1.20.1) -> forge/build/libs/chatcmd-0.8.0-forge+mc1.20.1.jar
 gradlew.bat :forge:reobfJar
 ```
 
