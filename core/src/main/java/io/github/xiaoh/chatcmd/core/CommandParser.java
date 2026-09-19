@@ -86,10 +86,20 @@ public final class CommandParser {
 
     private final AliasTable aliasTable;
     private final ItemIdResolver itemIdResolver;
+    private final EnchantSyntax enchantSyntax;
 
+    /** 默认按 1.20.5+ 的物品组件语法组装附魔指令。 */
     public CommandParser(AliasTable aliasTable, ItemIdResolver itemIdResolver) {
+        this(aliasTable, itemIdResolver, EnchantSyntax.ITEM_COMPONENT);
+    }
+
+    /**
+     * @param enchantSyntax 附魔指令的语法档位，由平台适配层按目标 Minecraft 版本指定
+     */
+    public CommandParser(AliasTable aliasTable, ItemIdResolver itemIdResolver, EnchantSyntax enchantSyntax) {
         this.aliasTable = aliasTable;
         this.itemIdResolver = itemIdResolver;
+        this.enchantSyntax = enchantSyntax;
     }
 
     /**
@@ -662,11 +672,11 @@ public final class CommandParser {
     }
 
     /**
-     * 附魔一件新物品：{@code give @s <item>[enchantments={...}]}。
+     * 附魔一件新物品：把物品和附魔交给 {@link EnchantSyntax} 拼成 {@code /give} 的物品参数。
      *
      * <p>
-     * 1.20.5 起物品数据改成了「物品组件（item components）」语法，
-     * 老的 {@code stick{Enchantments:[{id:...,lvl:...}]}} 写法已被移除，写了必报错。
+     * 具体写法随 Minecraft 版本变化（1.20.5 起是物品组件语法，之前是 NBT 语法），
+     * 由平台适配层在构造 {@link CommandParser} 时选定档位，这里不写死版本。
      */
     private ParseResult assembleEnchant(List<String> args, String note, String input) {
         String itemRaw = args.get(0);
@@ -684,7 +694,7 @@ public final class CommandParser {
         }
         // 第 2 个及之后的参数：每一项都是一个附魔（空格或逗号分隔都行）
         List<String> pieces = enchantPieces(args.subList(1, args.size()));
-        List<String> pairs = new ArrayList<>();
+        List<EnchantSyntax.Enchant> enchants = new ArrayList<>();
         for (String piece : pieces) {
             Optional<AliasTable.EnchantPrefix> hit = aliasTable.enchantPrefix(piece);
             if (hit.isEmpty()) {
@@ -706,14 +716,14 @@ public final class CommandParser {
                         "附魔等级「" + levelRaw + "」不是正整数。用法：" + CommandType.ENCHANT.usage(),
                         suggestionsFor(input, piece, List.of(hit.get().name())));
             }
-            pairs.add("\"" + hit.get().id() + "\":" + level.get());
+            enchants.add(new EnchantSyntax.Enchant(hit.get().id(), level.get()));
         }
-        if (pairs.isEmpty()) {
+        if (enchants.isEmpty()) {
             return ParseResult.error(ParseResult.Status.BAD_ARGS,
                     "没写附魔。用法：" + CommandType.ENCHANT.usage());
         }
-        return ParseResult.ok(CommandType.ENCHANT.commandPrefix() + " " + itemId.get()
-                + "[enchantments={" + String.join(",", pairs) + "}]", note);
+        return ParseResult.ok(CommandType.ENCHANT.commandPrefix() + " "
+                + enchantSyntax.assemble(itemId.get(), enchants), note);
     }
 
     /**

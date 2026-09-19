@@ -1,0 +1,90 @@
+// :forge —— Forge 1.20.1 适配层。
+// 与 :neoforge 职责完全相同，只是换成 Forge 的 API：
+// 把 core 的解析结果发成原版指令；用注册表实现 core 的 ItemIdResolver 接口。
+
+plugins {
+    id 'java-library'
+    // legacyforge 是 ModDevGradle 官方为 Forge ≤ 1.20.1 提供的插件，
+    // 版本与 :neoforge 用的 moddev 保持同一代（2.0.147），Gradle 9.2.1 无需降级。
+    id 'net.neoforged.moddev.legacyforge' version '2.0.147'
+}
+
+sourceSets.main.resources {
+    // 开发期专用资源不进最终产物
+    exclude("**/*.bbmodel") // BlockBench 工程文件
+    exclude("src/generated/**/.cache") // datagen 缓存
+}
+
+base {
+    archivesName = mod_id
+}
+
+// Forge 1.20.1 官方要求的运行环境就是 Java 17。
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+
+legacyForge {
+    version = project.forge_version
+
+    // 声明开发客户端运行配置，于是有了 :forge:runClient 任务。
+    // 用途：在把 jar 发给别人之前，先在自己机器上确认这个 Forge 1.20.1 构建确实能被游戏加载。
+    // 不声明 server 运行：本模组是客户端专用（mods.toml 里 clientSideOnly=true），
+    // 在专用服务器上本就应当被跳过加载，跑起来看不出任何东西。
+    runs {
+        client {
+            client()
+        }
+    }
+}
+
+dependencies {
+    implementation project(':core')
+}
+
+// 把 :core 的产物合并进模组 jar。
+// core 是零外部依赖的纯 Java 库，直接合并类文件是安全的；
+// 排除它自己的 MANIFEST.MF，避免覆盖模组 jar 的清单。
+// 产物命名对齐社区惯例：<模组id>-<模组版本>-<平台>+mc<MC版本>.jar
+// 例：chatcmd-0.7.0-forge+mc1.20.1.jar
+def releaseJarName = "${mod_id}-${mod_version}-forge+mc${minecraft_version_forge}.jar"
+
+def coreJar = project(':core').tasks.named('jar')
+tasks.named('jar', Jar) {
+    dependsOn coreJar
+    archiveFileName = releaseJarName
+    from(coreJar.flatMap { it.archiveFile }.map { zipTree(it.asFile) }) {
+        exclude 'META-INF/MANIFEST.MF'
+    }
+}
+
+// legacyforge 下 `jar` 只是「开发用」产物（落在 build/devlibs/），
+// 真正发给玩家的是重混淆（reobf）之后的 `reobfJar`（落在 build/libs/）。
+// 所以成品名要在它上面再设一次，否则打出来会叫 chatcmd-0.7.0.jar。
+tasks.withType(Jar).configureEach {
+    if (name == 'reobfJar') {
+        archiveFileName = releaseJarName
+    }
+}
+
+// 把 src/main/templates 里的占位符（${mod_id} 等）展开，生成 META-INF/mods.toml
+var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
+    var replaceProperties = [
+            minecraft_version_forge     : minecraft_version_forge,
+            minecraft_version_range_forge: minecraft_version_range_forge,
+            forge_version               : forge_version,
+            forge_version_range         : forge_version_range,
+            loader_version_range_forge  : loader_version_range_forge,
+            mod_id                      : mod_id,
+            mod_name                    : mod_name,
+            mod_license                 : mod_license,
+            mod_version                 : mod_version,
+    ]
+    inputs.properties replaceProperties
+    // 本机 ANSI 代码页是 GBK，而 Gradle 守护进程被设成 -Dfile.encoding=GBK（修 @argfile 编码问题所需），
+    // 于是 ProcessResources 会按 GBK 去读 UTF-8 的模板文件，模板里的中文会变成乱码。
+    // 这里显式指定按 UTF-8 读模板，与模板文件的实际编码对齐。
+    filteringCharset = 'UTF-8'
+    expand replaceProperties
+    from "src/main/templates"
+    into "build/generated/sources/modMetadata"
+}
+sourceSets.main.resources.srcDir generateModMetadata

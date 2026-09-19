@@ -4,7 +4,16 @@
 
 ## ChatCmd 聊天指令
 
-当前版本：**0.6.2** · 完整文档见 [README.md](README.md)
+当前版本：**0.7.0** · 完整文档见 [README.md](README.md)
+
+### 0.7.0 —— 2026-09-19
+
+- 新增 **Forge 1.20.1 支持**，成品 jar：`chatcmd-0.7.0-forge+mc1.20.1.jar`（需要 Forge 47.3.0 或更高）
+- 新增 `forge` 子模块，与 `neoforge` 共用同一份 `core`；`core` 降到 Java 17，一份字节码同时喂给两个平台（1.20.1 跑 Java 17，1.21.1 跑 Java 21）
+- 附魔指令语法按平台自动切换：1.21.1 用物品组件 `[enchantments={...}]`，1.20.1 用 NBT `{Enchantments:[{id:...,lvl:...s}]}`。这是两个版本间**唯一**的指令差异
+- Forge 侧声明 `clientSideOnly=true`，误装到专用服务器上不会加载、不会崩服（等价于 NeoForge 侧的 `dist = Dist.CLIENT`）
+- `checkCorePurity` 的禁用引用列表补上 `net.minecraftforge.*`，Forge 平台的引用同样不许泄进 `core`
+- CI（持续集成）改为同时构建并上传两个平台的 jar，打 tag 时一起挂到 Release
 
 ### 0.6.2 —— 2026-09-19
 
@@ -73,7 +82,16 @@ To download a ready-to-use jar, head to the [Releases](https://github.com/yuniji
 
 ## ChatCmd
 
-Current version: **0.6.2** · Full documentation in [README.md](README.md)
+Current version: **0.7.0** · Full documentation in [README.md](README.md)
+
+### 0.7.0 — 2026-09-19
+
+- Added **Forge 1.20.1 support**; the artifact is `chatcmd-0.7.0-forge+mc1.20.1.jar` (requires Forge 47.3.0 or newer)
+- Added a `forge` submodule sharing the same `core` as `neoforge`; `core` was lowered to Java 17 so one set of bytecode feeds both platforms (1.20.1 runs on Java 17, 1.21.1 on Java 21)
+- The enchantment command syntax now switches per platform: 1.21.1 uses item components `[enchantments={...}]`, 1.20.1 uses NBT `{Enchantments:[{id:...,lvl:...s}]}`. This is the **only** command difference between the two versions
+- The Forge side declares `clientSideOnly=true`, so it is not loaded on a dedicated server and cannot crash it (the equivalent of `dist = Dist.CLIENT` on the NeoForge side)
+- `checkCorePurity` now also forbids `net.minecraftforge.*`, so Forge platform references cannot leak into `core` either
+- CI now builds and uploads the jars for both platforms and attaches them together to the Release when a tag is pushed
 
 ### 0.6.2 — 2026-09-19
 

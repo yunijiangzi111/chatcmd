@@ -1,11 +1,10 @@
-package io.github.xiaoh.chatcmd.neoforge;
+package io.github.xiaoh.chatcmd.forge;
 
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import com.mojang.logging.LogUtils;
 
 import io.github.xiaoh.chatcmd.core.AliasTable;
 import io.github.xiaoh.chatcmd.core.CommandParser;
@@ -21,58 +20,57 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.bus.api.IEventBus;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.fml.common.Mod;
-import net.neoforged.neoforge.client.event.ClientChatEvent;
-import net.neoforged.neoforge.client.event.ClientChatReceivedEvent;
-import net.neoforged.neoforge.client.event.ClientTickEvent;
-import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
-import net.neoforged.neoforge.client.settings.KeyConflictContext;
-import net.neoforged.neoforge.client.settings.KeyModifier;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.ClientChatEvent;
+import net.minecraftforge.client.event.ClientChatReceivedEvent;
+import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
+import net.minecraftforge.client.settings.KeyConflictContext;
+import net.minecraftforge.client.settings.KeyModifier;
+import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.lwjgl.glfw.GLFW;
-import org.slf4j.Logger;
 
 /**
- * ChatCmd 聊天指令模组的主入口。
+ * ChatCmd 在 Forge 1.20.1 上的客户端实现：聊天拦截、坐标点击传送、候选渲染、快捷键。
  *
- * <p>本模组只是「中文指令翻译宏」：拦截聊天框里以 {@code #} 开头的输入，
- * 翻译成原版指令，再以玩家自己的身份发出去。
- * <b>它不绕过任何权限</b> —— 能否生效完全由服务端按玩家权限判定。
+ * <p>
+ * 整个类只在客户端加载（{@code value = Dist.CLIENT}）。入口 {@link ChatCmdMod}
+ * 用 {@code DistExecutor} 延迟引用它，因此专用服务器上这个类连同它引用的
+ * {@code KeyMapping} 等客户端专属类都不会被加载。
  *
- * <p>声明 {@code dist = Dist.CLIENT}：这里是客户端模组，
- * 误装到专用服务器上时不会加载这些客户端类，也就不会崩服。
+ * <p>
+ * 解析引擎用的是 core 的 NBT 档位：1.20.1 还没有物品组件语法，
+ * 附魔要写成 {@code give @s minecraft:stick{Enchantments:[{id:"...",lvl:255s}]}}。
  */
-@Mod(value = ChatCmdMod.MOD_ID, dist = Dist.CLIENT)
-@EventBusSubscriber(modid = ChatCmdMod.MOD_ID, value = Dist.CLIENT)
-public class ChatCmdMod {
+@Mod.EventBusSubscriber(modid = ChatCmdMod.MOD_ID, value = Dist.CLIENT)
+public final class ChatCmdClient {
 
-    public static final String MOD_ID = "chatcmd";
-    public static final Logger LOGGER = LogUtils.getLogger();
-
-    // MC 1.21.1 用物品组件语法：give @s stick[enchantments={...}]
-    private static final CommandParser PARSER = new CommandParser(AliasTable.defaultTable(),
-            new RegistryItemIdResolver(), EnchantSyntax.ITEM_COMPONENT);
+    private static final CommandParser PARSER =
+            new CommandParser(AliasTable.defaultTable(), new RegistryItemIdResolver(), EnchantSyntax.NBT);
 
     /**
      * 逃生通道的重入守卫。
      *
-     * <p>为什么需要它：{@code ClientChatEvent}（客户端聊天事件）就是在
+     * <p>
+     * 为什么需要它：{@code ClientChatEvent}（客户端聊天事件）就是在
      * {@code ClientPacketListener.sendChat}（客户端连接层的「发聊天」方法）<b>第一行</b>触发的。
      * 逃生通道若直接调 {@code sendChat("#你好")}，会立刻再触发一次本事件，
      * 而内层消息只有一个 {@code #}，于是被当成「认不出动词」弹出红字报错，
      * 同时被 {@code setCanceled(true)} 拦下 —— 结果玩家看到一句莫名其妙的报错，那句话其实没发出去。
      *
-     * <p>事件是<b>同步</b>触发的，所以用一个静态标志位就足够：置位期间内层事件直接放行。
+     * <p>
+     * 事件是<b>同步</b>触发的，所以用一个静态标志位就足够：置位期间内层事件直接放行。
      */
     private static boolean sendingEscapeChat;
 
     /**
      * 「正在等结构查找的回执」标记。
      *
-     * <p>{@code /locate} 的结果是服务器异步回话的，发完指令拿不到坐标，
+     * <p>
+     * {@code /locate} 的结果是服务器异步回话的，发完指令拿不到坐标，
      * 只能先挂个标记，等紧接着收到的那条系统消息里去找坐标。
      * 不管那条是不是回执，收到就清掉 —— 免得误伤后面某条恰好带坐标的聊天。
      */
@@ -86,10 +84,11 @@ public class ChatCmdMod {
      * 快捷键：按 {@code #}（也就是 Shift+3）直接打开聊天框并预填 {@code #}，
      * 省掉「先按 T 再打 #」这一步。原版的 {@code /} 键就是这么干的。
      *
-     * <p>玩家可在「选项 → 控制」里自行改键。注意：数字键本身也是原版的快捷栏切换键，
+     * <p>
+     * 玩家可在「选项 → 控制」里自行改键。注意：数字键本身也是原版的快捷栏切换键，
      * 所以按住 Shift 按 3 有可能连带切换快捷栏第 3 格 —— 嫌烦就改绑到别的键。
      */
-    public static final KeyMapping OPEN_CHAT = new KeyMapping(
+    private static final KeyMapping OPEN_CHAT = new KeyMapping(
             "key.chatcmd.open_chat",
             KeyConflictContext.IN_GAME,
             KeyModifier.SHIFT,
@@ -97,19 +96,39 @@ public class ChatCmdMod {
             GLFW.GLFW_KEY_3,
             "key.categories.chatcmd");
 
-    public ChatCmdMod(IEventBus modEventBus) {
-        // 快捷键注册属于模组事件总线（IModBusEvent），不能挂在游戏事件总线上
-        modEventBus.addListener(ChatCmdMod::onRegisterKeyMappings);
-        LOGGER.info("ChatCmd 聊天指令模组已加载，输入 # 开头的消息即可使用");
+    /** 本类全是静态内容，不允许实例化。 */
+    private ChatCmdClient() {
     }
 
-    static void onRegisterKeyMappings(RegisterKeyMappingsEvent event) {
+    /**
+     * 把快捷键挂到模组事件总线上。
+     *
+     * <p>
+     * 由 {@link ChatCmdMod} 的构造函数经 {@code DistExecutor} 只在客户端调用 ——
+     * 所以这里可以放心引用 {@code RegisterKeyMappingsEvent} 这类客户端专属的类。
+     */
+    static void registerKeyMappings() {
+        IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
+        modEventBus.addListener(ChatCmdClient::onRegisterKeyMappings);
+    }
+
+    private static void onRegisterKeyMappings(RegisterKeyMappingsEvent event) {
         event.register(OPEN_CHAT);
     }
 
-    /** 轮询快捷键：按下就把聊天框打开，并预填一个触发前缀。 */
+    /**
+     * 轮询快捷键：按下就把聊天框打开，并预填一个触发前缀。
+     *
+     * <p>
+     * 1.20.1 没有 NeoForge 那种「只在一 tick 末尾触发一次」的 {@code ClientTickEvent.Post}，
+     * Forge 的 {@code TickEvent.ClientTickEvent} 一 tick 会发两次（START / END），
+     * 所以这里显式只处理 END，避免重复处理按键。
+     */
     @SubscribeEvent
-    static void onClientTick(ClientTickEvent.Post event) {
+    static void onClientTick(TickEvent.ClientTickEvent event) {
+        if (event.phase != TickEvent.Phase.END) {
+            return;
+        }
         Minecraft minecraft = Minecraft.getInstance();
         while (OPEN_CHAT.consumeClick()) {
             if (minecraft.screen == null && minecraft.player != null) {
@@ -196,13 +215,16 @@ public class ChatCmdMod {
     /**
      * 把 {@code /locate} 回执里的坐标渲染成「点一下直接传送」。
      *
-     * <p>原版自己的坐标用的是 {@code SUGGEST_COMMAND}（点击只填入聊天框，还得再按回车），
+     * <p>
+     * 原版自己的坐标用的是 {@code SUGGEST_COMMAND}（点击只填入聊天框，还得再按回车），
      * 这里额外补一行 {@code RUN_COMMAND}（点击立即执行）的，点一下就到。
      *
-     * <p>注意 {@code RUN_COMMAND} 的值<b>必须以 {@code /} 开头</b>，
+     * <p>
+     * 注意 {@code RUN_COMMAND} 的值<b>必须以 {@code /} 开头</b>，
      * 否则客户端会直接拒绝执行（原版 {@code Screen.handleComponentClicked} 里的硬性判断）。
      *
-     * <p>纵坐标沿用原版回执里的 {@code ~}（保持玩家当前高度），与原版建议的传送指令一致。
+     * <p>
+     * 纵坐标沿用原版回执里的 {@code ~}（保持玩家当前高度），与原版建议的传送指令一致。
      */
     @SubscribeEvent
     static void onClientChatReceived(ClientChatReceivedEvent event) {
@@ -235,7 +257,8 @@ public class ChatCmdMod {
     /**
      * 把候选渲染成一行<b>可点击</b>的文字。
      *
-     * <p>用 {@code SUGGEST_COMMAND}（「填入聊天框」动作）而不是 {@code RUN_COMMAND}（「直接执行」动作）：
+     * <p>
+     * 用 {@code SUGGEST_COMMAND}（「填入聊天框」动作）而不是 {@code RUN_COMMAND}（「直接执行」动作）：
      * 点一下只是把候选填进聊天框，玩家还能改，回车才真正发出去 —— 猜错也不会造成后果。
      */
     private static void displaySuggestions(LocalPlayer player, List<String> suggestions) {

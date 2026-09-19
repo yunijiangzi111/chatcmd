@@ -1,0 +1,53 @@
+# ChatCmd（聊天指令）Forge 1.20.1 模组元数据。
+# 这是 Forge 格式的 mods.toml（NeoForge 1.21.1 那边用的是 neoforge.mods.toml，两者格式不同）。
+# 文件里的美元花括号占位符由 forge/build.gradle 的 generateModMetadata 任务展开；
+# 注意别在本文件里写裸的美元花括号（Groovy 模板引擎会当成表达式去求值，直接构建失败）。
+
+modLoader="javafml" #mandatory
+
+# FML 的版本范围。Forge 1.20.1 对应的 FML 主版本是 47。
+loaderVersion="${loader_version_range_forge}" #mandatory
+
+license="${mod_license}"
+
+issueTrackerURL="https://github.com/yunijiangzi111/chatcmd/issues" #optional
+
+[[mods]] #mandatory
+
+modId="${mod_id}" #mandatory
+
+version="${mod_version}" #mandatory
+
+displayName="${mod_name}" #mandatory
+
+displayURL="https://github.com/yunijiangzi111/chatcmd" #optional
+
+authors="芋泥酱子"
+
+# 纯粹的客户端模组：Forge 会据此自动把 displayTest 设成 IGNORE_ALL_VERSION
+# （客户端连上没装本模组的服务器时不会亮红叉），并在专用服务器上跳过加载本模组。
+# 这是 NeoForge 侧 @Mod(dist = Dist.CLIENT) 在 Forge 1.20.1 上的对应写法。
+clientSideOnly=true #optional
+
+description='''
+用中文在聊天框里向模组下达指令：输入 # 给我 钻石剑 5，模组会翻译成原版指令 /give、/tp、/time set 等，并以你自己的身份发出。
+
+输入 ## 任意文本 可以把开头带 # 的话当作普通聊天发出去。
+
+注意：本模组只做「翻译 + 发送」，不绕过任何权限，能否生效完全由服务端按你的权限决定。
+'''
+
+[[dependencies.${mod_id}]] #optional
+    modId="forge" #mandatory
+    # Forge 格式用布尔 mandatory，而不是 NeoForge 那种 type="required"
+    mandatory=true #mandatory
+    versionRange="${forge_version_range}" #mandatory
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.${mod_id}]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="${minecraft_version_range_forge}"
+    ordering="NONE"
+    side="BOTH"

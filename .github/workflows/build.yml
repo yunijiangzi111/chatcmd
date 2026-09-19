@@ -33,13 +33,20 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew build
 
-      # 只上传 neoforge 的成品 jar：它已自带 core 的类，是自包含的，
+      # 只上传两个平台的成品 jar：它们各自都自带了 core 的类，是自包含的，
       # core-*.jar 只是中间产物，不该发给玩家。
+      #
+      # 两个目录都必须是 build/libs：
+      #   neoforge 的 :jar 直接输出到 build/libs；
+      #   forge 走 legacyforge 插件，开发产物落在 build/devlibs，
+      #   重混淆后的成品才是 build/libs 里那个。
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: chatcmd-jar
-          path: neoforge/build/libs/chatcmd-*.jar
+          path: |
+            neoforge/build/libs/chatcmd-*.jar
+            forge/build/libs/chatcmd-*.jar
           if-no-files-found: error
 
   # 推 v* 标签时自动建 Release 并把成品 jar 挂上去。

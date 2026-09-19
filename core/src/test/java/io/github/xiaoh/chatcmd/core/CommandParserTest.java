@@ -19,6 +19,10 @@ class CommandParserTest {
 
     private final CommandParser parser = new CommandParser(AliasTable.defaultTable(), ItemIdResolver.EMPTY);
 
+    /** Forge 1.20.1 用的档位：附魔写成 NBT 语法。 */
+    private final CommandParser nbtParser =
+            new CommandParser(AliasTable.defaultTable(), ItemIdResolver.EMPTY, EnchantSyntax.NBT);
+
     // ---------- 正常路径：计划 §5 的 6 个模板 ----------
 
     @Test
@@ -658,6 +662,30 @@ class CommandParserTest {
                 parser.parse("#附魔 木棍 击退 255").payload());
         // 前一项已经带等级了，后面的裸数字就不并了
         assertSame(ParseResult.Status.UNKNOWN_VALUE, parser.parse("#附魔 木棍 击退5 255").status());
+    }
+
+    // ---------- 附魔语法档位：Forge 1.20.1 走 NBT 档 ----------
+
+    @Test
+    @DisplayName("NBT 档：1.20.1 的附魔指令用 {Enchantments:[{id:...,lvl:...s}]} 写法")
+    void enchantNbtSyntax() {
+        assertEquals("give @s minecraft:stick{Enchantments:[{id:\"minecraft:knockback\",lvl:255s}]}",
+                nbtParser.parse("#附魔 木棍 击退255").payload());
+    }
+
+    @Test
+    @DisplayName("NBT 档：多个附魔拼成一个 Enchantments 列表")
+    void enchantNbtSyntaxMultiple() {
+        assertEquals("give @s minecraft:diamond_sword{Enchantments:["
+                        + "{id:\"minecraft:sharpness\",lvl:5s},{id:\"minecraft:unbreaking\",lvl:3s}]}",
+                nbtParser.parse("#附魔 钻石剑 锋利5,耐久3").payload());
+    }
+
+    @Test
+    @DisplayName("NBT 档只影响附魔：附魔手持仍是原版 /enchant，其它指令也不变")
+    void nbtSyntaxOnlyAffectsGive() {
+        assertEquals("enchant @s minecraft:sharpness 10", nbtParser.parse("#附魔手持 锋利10").payload());
+        assertEquals("give @s minecraft:diamond_sword 5", nbtParser.parse("#给我 钻石剑 5").payload());
     }
 
     @Test

@@ -10,8 +10,11 @@ plugins {
 
 rootProject.name = 'chatcmd'
 
-// chatcmd 模组由两个子模块组成：
+// chatcmd 模组由三个子模块组成：
 //   :core     —— 纯 Java 解析引擎，零 Minecraft 依赖，可脱离游戏跑单元测试
-//   :neoforge —— NeoForge 适配层，把 core 的解析结果发成原版指令
+//   :neoforge —— NeoForge 适配层（MC 1.21.1 / Java 21）
+//   :forge    —— Forge 适配层（MC 1.20.1 / Java 17）
+// :core 一份代码同时喂给两个平台，两边只是「平台 API 调用」和「附魔语法」不同。
 include 'core'
 include 'neoforge'
+include 'forge'

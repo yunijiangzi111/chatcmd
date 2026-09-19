@@ -2,7 +2,7 @@
 
 用中文在聊天框里下达 Minecraft 指令。输入 `#给我1个钻石剑`，模组会把它翻译成原版指令 `/give @s minecraft:diamond_sword 1`，并以你自己的身份发出去。
 
-当前版本：**0.6.2**
+当前版本：**0.7.0**
 
 中文 | [English](#english)
 
@@ -18,25 +18,31 @@ ChatCmd 是一个 Minecraft **客户端模组（client-side mod）**，它拦截
 2. **不绕过任何权限（permission）**：模组只是替你打字，指令以你的身份发出，能否生效完全由服务端（server-side）按你的权限判定。
 3. **不静默改词**：模糊纠错（fuzzy matching）命中时一定用黄色文字明说纠成了什么；不确定时宁可报错，也不猜。
 
-架构上分成两个模块：
+架构上分成三个模块：
 
 - `core` —— 纯 Java 解析引擎，零 Minecraft 依赖，可脱离游戏单独跑单元测试。
-- `neoforge` —— NeoForge（一个 Minecraft 模组加载器）适配层，负责把解析结果发成原版指令，并用游戏物品注册表实现 `core` 的物品解析接口。
+- `neoforge` —— NeoForge（一个 Minecraft 模组加载器）适配层，对应 Minecraft 1.21.1。
+- `forge` —— Forge（另一个 Minecraft 模组加载器）适配层，对应 Minecraft 1.20.1。
+
+两个适配层共用同一份 `core`，差异只有两处：平台 API 的调用方式，以及附魔指令的语法（1.20.5 起改用物品组件语法，1.20.1 还是 NBT 语法）。
 
 ## 安装
 
-需要：
+本模组同时提供两个平台：
 
-- Minecraft **1.21.1**
-- NeoForge（一个 Minecraft 模组加载器）**21.1.228** 或更高版本
-- Java 21（Minecraft 1.21.1 自带，无需单独安装）
+| 你要玩的版本 | 装哪个 jar | 需要的前置 |
+| --- | --- | --- |
+| Minecraft **1.21.1** | `chatcmd-0.7.0-neoforge+mc1.21.1.jar` | NeoForge（一个 Minecraft 模组加载器）**21.1.228** 或更高 |
+| Minecraft **1.20.1** | `chatcmd-0.7.0-forge+mc1.20.1.jar` | Forge（另一个 Minecraft 模组加载器）**47.3.0** 或更高 |
+
+Java（一种编程语言运行环境）随游戏自带，两个版本都不需要单独安装。
 
 安装方式：
 
-1. 把构建产物 `chatcmd-0.6.2-neoforge+mc1.21.1.jar` 放进 `.minecraft/mods` 目录。
+1. 把对应平台的 jar 放进 `.minecraft/mods` 目录。
 2. 启动游戏。
 
-这是**客户端模组（client-side mod）**：只装在客户端即可，**服务端不需要安装**。它声明了 `dist = Dist.CLIENT`，即使误装到专用服务器上也不会加载客户端类，不会导致崩服。
+这是**客户端模组（client-side mod）**：只装在客户端即可，**服务端不需要安装**。NeoForge 侧声明了 `dist = Dist.CLIENT`，Forge 侧声明了 `clientSideOnly=true`，即使误装到专用服务器上也不会加载客户端类，不会导致崩服。
 
 ## 快速开始
 
@@ -280,12 +286,17 @@ ChatCmd 是一个 Minecraft **客户端模组（client-side mod）**，它拦截
 
 用法：`#附魔 <物品> <附魔><等级>`，多个附魔用逗号或空格隔开。
 
-1.20.5 起物品数据改成了「物品组件（item components）」语法，所以生成的指令用新的 `[enchantments={...}]` 写法（老的 `stick{Enchantments:[...]}` 写法已被原版移除）。
+附魔指令的写法**随 Minecraft 版本变化**，模组按平台自动选：
 
-| 你输入 | 实际发出 |
-| --- | --- |
-| `#附魔 钻石剑 锋利5` | `/give @s minecraft:diamond_sword[enchantments={"minecraft:sharpness":5}]` |
-| `#附魔 钻石剑 锋利5,耐久3` | `/give @s minecraft:diamond_sword[enchantments={"minecraft:sharpness":5,"minecraft:unbreaking":3}]` |
+- **Minecraft 1.20.5 起**（本模组的 neoforge 版）：物品数据改成了「物品组件（item components）」语法，用新的 `[enchantments={...}]` 写法，老的 `stick{Enchantments:[...]}` 写法已被原版移除。
+- **Minecraft 1.20.4 及以前**（本模组的 forge 1.20.1 版）：还是 NBT（一种数据格式）写法 `{Enchantments:[{id:...,lvl:...s}]}`。
+
+| 你输入 | neoforge 版（1.21.1）实际发出 | forge 版（1.20.1）实际发出 |
+| --- | --- | --- |
+| `#附魔 钻石剑 锋利5` | `/give @s minecraft:diamond_sword[enchantments={"minecraft:sharpness":5}]` | `/give @s minecraft:diamond_sword{Enchantments:[{id:"minecraft:sharpness",lvl:5s}]}` |
+| `#附魔 钻石剑 锋利5,耐久3` | `/give @s minecraft:diamond_sword[enchantments={"minecraft:sharpness":5,"minecraft:unbreaking":3}]` | `/give @s minecraft:diamond_sword{Enchantments:[{id:"minecraft:sharpness",lvl:5s},{id:"minecraft:unbreaking",lvl:3s}]}` |
+
+只有这一条指令受版本影响，`#附魔手持`（走原版 `/enchant`）和其它所有指令在两个版本下完全一样。
 
 附魔等级省略时默认 1 级，并且**原样透传**，不做「口语减一」的换算。
 
@@ -564,6 +575,8 @@ export JAVA_HOME=/path/to/jdk-21
 
 也可以在 `gradle.properties` 里写 `org.gradle.java.home=<JDK 21 路径>`（推荐把这一行放在**用户级**配置 `~/.gradle/gradle.properties` 里，这样换个工程或换台机器都不用重填）。
 
+**JDK 17 不用你手动装**：`core` 模块定在 Java 17（Forge 1.20.1 跑在 Java 17 上），Gradle 会通过 `settings.gradle` 里的 `foojay-resolver-convention` 插件**自动下载**它。
+
 跑单元测试（`core` 是纯 Java 模块，零 Minecraft 依赖，可以脱离游戏直接测）：
 
 ```bat
@@ -574,31 +587,39 @@ gradlew.bat :core:test
 ./gradlew :core:test
 ```
 
-构建模组 jar（产物在 `neoforge/build/libs/chatcmd-0.6.2-neoforge+mc1.21.1.jar`）：
+构建模组 jar：
 
 ```bat
+:: NeoForge（1.21.1）→ neoforge/build/libs/chatcmd-0.7.0-neoforge+mc1.21.1.jar
 gradlew.bat :neoforge:jar
+
+:: Forge（1.20.1）→ forge/build/libs/chatcmd-0.7.0-forge+mc1.20.1.jar
+gradlew.bat :forge:reobfJar
 ```
 
 ```bash
 ./gradlew :neoforge:jar
+./gradlew :forge:reobfJar
 ```
+
+注意 Forge 侧要跑的是 **`reobfJar`**，不是 `jar`：Forge 1.20.1 的开发产物名字是混淆前的（官方名），必须再经过一道**重混淆（reobfuscate）**才能给正式版游戏加载。`jar` 的产物落在 `forge/build/devlibs/`（开发用），`reobfJar` 的产物才是 `forge/build/libs/` 里那个发给玩家的成品。
 
 其它有用的任务：
 
-- `:core:check` —— 除了跑测试，还会执行 `checkCorePurity`：扫描 `core` 源码，一旦出现 `net.minecraft.*` / `net.neoforged.*` 引用就让构建失败，保证「零 Minecraft 依赖」这条约束不会随代码腐化。
-- `:neoforge:runClient` —— 启动一个带本模组的开发客户端，用于本地调试。
+- `:core:check` —— 除了跑测试，还会执行 `checkCorePurity`：扫描 `core` 源码，一旦出现 `net.minecraft.*` / `net.neoforged.*` / `net.minecraftforge.*` 引用就让构建失败，保证「零 Minecraft 依赖」这条约束不会随代码腐化。
+- `:neoforge:runClient` —— 启动一个带本模组的 NeoForge 开发客户端（1.21.1），用于本地调试。
+- `:forge:runClient` —— 启动一个带本模组的 Forge 开发客户端（1.20.1），用于本地调试。
 
-工具链版本：Gradle 9.2.1、ModDevGradle 2.0.147、NeoForge 21.1.228、Minecraft 1.21.1。
+工具链版本：Gradle 9.2.1、ModDevGradle 2.0.147、NeoForge 21.1.228 / Minecraft 1.21.1、Forge 47.3.0 / Minecraft 1.20.1。
 
 ## 发布新版本
 
 本仓库只有 ChatCmd 这一个模组，所以 tag（版本标签）直接用简洁的 `v<版本号>`，不需要模组前缀：
 
 1. 改好代码，把 `gradle.properties` 里的 `mod_version` 升上去。
-2. 打 tag 并推送：`git tag v0.6.3 && git push origin v0.6.3`。
+2. 打 tag 并推送：`git tag v0.7.1 && git push origin v0.7.1`。
 
-CI（持续集成）会自动构建并把成品 jar 挂到 [Releases 版本发布](https://github.com/yunijiangzi111/chatcmd/releases) 页面，**不需要在网页上手动点发布**。产物命名对齐社区惯例 `<模组id>-<版本号>-<平台>+mc<MC版本>.jar`，例如 `chatcmd-0.6.3-neoforge+mc1.21.1.jar`。
+CI（持续集成）会自动构建并把**两个平台**的成品 jar 一起挂到 [Releases 版本发布](https://github.com/yunijiangzi111/chatcmd/releases) 页面，**不需要在网页上手动点发布**。产物命名对齐社区惯例 `<模组id>-<版本号>-<平台>+mc<MC版本>.jar`，例如 `chatcmd-0.7.1-neoforge+mc1.21.1.jar` 与 `chatcmd-0.7.1-forge+mc1.20.1.jar`。
 
 ## 许可证
 
@@ -614,7 +635,7 @@ CI（持续集成）会自动构建并把成品 jar 挂到 [Releases 版本发�
 
 Use Chinese in the chat box to issue Minecraft commands. Type `#给我1个钻石剑` and the mod translates it into the vanilla command `/give @s minecraft:diamond_sword 1`, then sends it as you.
 
-Current version: **0.6.2**
+Current version: **0.7.0**
 
 [中文](#chatcmd-聊天指令) | English
 
@@ -628,25 +649,31 @@ Three core design principles:
 2. **No permission bypass**: the mod only types for you. Commands are sent as you, and whether they take effect is decided entirely by the server according to your permissions.
 3. **No silent word changes**: when fuzzy matching hits, the mod always states in yellow what it corrected to. When unsure, it reports an error instead of guessing.
 
-The project is split into two modules:
+The project is split into three modules:
 
 - `core` — a pure Java parsing engine with zero Minecraft dependencies, testable without the game.
-- `neoforge` — the NeoForge adapter. It sends the parse result as vanilla commands and implements the `core` item resolver interface using the game item registry.
+- `neoforge` — the NeoForge adapter, targeting Minecraft 1.21.1.
+- `forge` — the Forge adapter, targeting Minecraft 1.20.1.
+
+Both adapters share the same `core`. They differ in exactly two places: how the platform API is called, and the enchantment command syntax (1.20.5 and later use the item components syntax, 1.20.1 still uses NBT).
 
 ## Installation
 
-Requirements:
+Both platforms are provided:
 
-- Minecraft **1.21.1**
-- NeoForge **21.1.228** or newer
-- Java 21 (bundled with Minecraft 1.21.1, no separate install needed)
+| The version you play | Which jar to install | Required mod loader |
+| --- | --- | --- |
+| Minecraft **1.21.1** | `chatcmd-0.7.0-neoforge+mc1.21.1.jar` | NeoForge **21.1.228** or newer |
+| Minecraft **1.20.1** | `chatcmd-0.7.0-forge+mc1.20.1.jar` | Forge **47.3.0** or newer |
+
+Java ships with the game, so no separate install is needed for either version.
 
 Installation:
 
-1. Put the build artifact `chatcmd-0.6.2-neoforge+mc1.21.1.jar` into `.minecraft/mods`.
+1. Put the jar for your platform into `.minecraft/mods`.
 2. Start the game.
 
-This is a **client-side mod**: installing it on the client is enough. The server does **not** need it. It declares `dist = Dist.CLIENT`, so even if it is accidentally installed on a dedicated server, the client classes are not loaded and the server will not crash.
+This is a **client-side mod**: installing it on the client is enough. The server does **not** need it. The NeoForge side declares `dist = Dist.CLIENT`, and the Forge side declares `clientSideOnly=true`, so even if it is accidentally installed on a dedicated server, the client classes are not loaded and the server will not crash.
 
 ## Quick Start
 
@@ -890,12 +917,17 @@ Verb aliases: `附魔`
 
 Usage: `#附魔 <item> <enchant><level>`, multiple enchants separated by commas or spaces.
 
-Since 1.20.5 item data uses the item components syntax, so the generated command uses the new `[enchantments={...}]` form (the old `stick{Enchantments:[...]}` form was removed from vanilla).
+The enchantment command syntax **changes with the Minecraft version**, and the mod picks it per platform:
 
-| You type | Actually sent |
-| --- | --- |
-| `#附魔 钻石剑 锋利5` | `/give @s minecraft:diamond_sword[enchantments={"minecraft:sharpness":5}]` |
-| `#附魔 钻石剑 锋利5,耐久3` | `/give @s minecraft:diamond_sword[enchantments={"minecraft:sharpness":5,"minecraft:unbreaking":3}]` |
+- **Minecraft 1.20.5 and later** (this mod's neoforge build): item data uses the "item components" syntax, so the new `[enchantments={...}]` form is used; the old `stick{Enchantments:[...]}` form was removed from vanilla.
+- **Minecraft 1.20.4 and earlier** (this mod's forge 1.20.1 build): still the NBT form `{Enchantments:[{id:...,lvl:...s}]}`.
+
+| You type | neoforge build (1.21.1) actually sent | forge build (1.20.1) actually sent |
+| --- | --- | --- |
+| `#附魔 钻石剑 锋利5` | `/give @s minecraft:diamond_sword[enchantments={"minecraft:sharpness":5}]` | `/give @s minecraft:diamond_sword{Enchantments:[{id:"minecraft:sharpness",lvl:5s}]}` |
+| `#附魔 钻石剑 锋利5,耐久3` | `/give @s minecraft:diamond_sword[enchantments={"minecraft:sharpness":5,"minecraft:unbreaking":3}]` | `/give @s minecraft:diamond_sword{Enchantments:[{id:"minecraft:sharpness",lvl:5s},{id:"minecraft:unbreaking",lvl:3s}]}` |
+
+This is the only command affected by the version; `#附魔手持` (which uses the vanilla `/enchant`) and every other command behave identically on both versions.
 
 The enchant level defaults to 1 and is **passed through as is**, with no "spoken minus one" conversion.
 
@@ -1174,6 +1206,8 @@ export JAVA_HOME=/path/to/jdk-21
 
 Alternatively, put `org.gradle.java.home=<path to JDK 21>` in `gradle.properties` (keeping that line in the **user-level** file `~/.gradle/gradle.properties` is recommended, so you never have to repeat it when switching projects or machines).
 
+**JDK 17 is downloaded for you**: the `core` module targets Java 17 (Forge 1.20.1 runs on Java 17), and Gradle fetches it automatically through the `foojay-resolver-convention` plugin declared in `settings.gradle`.
+
 Run the unit tests (`core` is a pure Java module with zero Minecraft dependencies, so it can be tested without the game):
 
 ```bat
@@ -1184,31 +1218,39 @@ gradlew.bat :core:test
 ./gradlew :core:test
 ```
 
-Build the mod jar (output at `neoforge/build/libs/chatcmd-0.6.2-neoforge+mc1.21.1.jar`):
+Build the mod jar:
 
 ```bat
+:: NeoForge (1.21.1) -> neoforge/build/libs/chatcmd-0.7.0-neoforge+mc1.21.1.jar
 gradlew.bat :neoforge:jar
+
+:: Forge (1.20.1) -> forge/build/libs/chatcmd-0.7.0-forge+mc1.20.1.jar
+gradlew.bat :forge:reobfJar
 ```
 
 ```bash
 ./gradlew :neoforge:jar
+./gradlew :forge:reobfJar
 ```
+
+Note that on the Forge side you must run **`reobfJar`**, not `jar`: the Forge 1.20.1 development artifact (named with official mappings) has to go through a **reobfuscation** pass before the release game can load it. The `jar` output lands in `forge/build/devlibs/` (development only), while `reobfJar` produces the ready-to-ship artifact in `forge/build/libs/`.
 
 Other useful tasks:
 
-- `:core:check` — besides running the tests, this runs `checkCorePurity`: it scans the `core` sources and fails the build if any `net.minecraft.*` / `net.neoforged.*` reference appears, keeping the "zero Minecraft dependencies" constraint from rotting as the code evolves.
-- `:neoforge:runClient` — launches a development client with the mod loaded, for local debugging.
+- `:core:check` — besides running the tests, this runs `checkCorePurity`: it scans the `core` sources and fails the build if any `net.minecraft.*` / `net.neoforged.*` / `net.minecraftforge.*` reference appears, keeping the "zero Minecraft dependencies" constraint from rotting as the code evolves.
+- `:neoforge:runClient` — launches a development NeoForge client (1.21.1) with the mod loaded, for local debugging.
+- `:forge:runClient` — launches a development Forge client (1.20.1) with the mod loaded, for local debugging.
 
-Toolchain versions: Gradle 9.2.1, ModDevGradle 2.0.147, NeoForge 21.1.228, Minecraft 1.21.1.
+Toolchain versions: Gradle 9.2.1, ModDevGradle 2.0.147, NeoForge 21.1.228 / Minecraft 1.21.1, Forge 47.3.0 / Minecraft 1.20.1.
 
 ## Releasing a New Version
 
 This repository holds ChatCmd only, so the tag (version label) is simply `v<version>` with no mod prefix:
 
 1. Write the code, then bump `mod_version` in `gradle.properties`.
-2. Tag and push: `git tag v0.6.3 && git push origin v0.6.3`.
+2. Tag and push: `git tag v0.7.1 && git push origin v0.7.1`.
 
-CI builds automatically and attaches the jar to the [Releases](https://github.com/yunijiangzi111/chatcmd/releases) page — **no manual clicking in the browser**. Artifacts follow the community convention `<modid>-<version>-<platform>+mc<MCversion>.jar`, for example `chatcmd-0.6.3-neoforge+mc1.21.1.jar`.
+CI builds automatically and attaches the jars for **both platforms** to the [Releases](https://github.com/yunijiangzi111/chatcmd/releases) page — **no manual clicking in the browser**. Artifacts follow the community convention `<modid>-<version>-<platform>+mc<MCversion>.jar`, for example `chatcmd-0.7.1-neoforge+mc1.21.1.jar` and `chatcmd-0.7.1-forge+mc1.20.1.jar`.
 
 ## License
 
