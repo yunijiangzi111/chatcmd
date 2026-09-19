@@ -546,15 +546,7 @@ ChatCmd 是一个 Minecraft **客户端模组（client-side mod）**，它拦截
 
 ## 更新日志
 
-- **0.1.0** —— 首个可用版本：基础的中文口语 → 原版指令翻译
-- **0.2.0** —— `##` 逃生通道；基于编辑距离（Levenshtein）的模糊纠错；短语语义表（如「死亡不掉落」）；中文乱码修复
-- **0.3.0** —— 内部迭代版本，无对外功能变更记录
-- **0.4.0** —— 修复 `##你好` 的递归自触发；量词前移（`#给我1个齿轮`）；无空格数量（`齿轮1`）；物品精确匹配 + 本地报错给候选；整句短语（`#白天`、`#永为白昼`，后者一次发两条指令）；可点击候选（填入聊天框）
-- **0.5.0** —— 新增 `#重置`、`#效果`、`#附魔`、`#附魔手持`、`#经验`、`#清除`
-- **0.5.1** —— 效果参数顺序定为「等级在前、时长在后」；支持带单位的时长（`30秒` / `30s`）；口语整句效果（`#给我30秒的速度2效果`）
-- **0.6.0** —— 结构查找（`#找 村庄` 等）；找到后额外给一行可点击坐标，单击直接传送
-- **0.6.1** —— 修复多个附魔被粘成一串导致「等级不是正整数」的问题（`#附魔手持 锋利5，耐久3`）
-- **0.6.2** —— 附魔名支持模糊纠错（`节支杀手` → `节肢杀手`）
+全部版本的完整变更记录统一放在仓库根目录的 [CHANGELOG.md 更新日志](../CHANGELOG.md)（中文 + 英文），成品 jar 见 [Releases 版本发布](../../releases)。
 
 ## 从源码构建
 
@@ -1155,15 +1147,7 @@ When an item name is not recognized, the mod **reports the error locally and lis
 
 ## Changelog
 
-- **0.1.0** — First usable version: basic spoken Chinese to vanilla command translation
-- **0.2.0** — The `##` escape hatch; fuzzy correction based on edit distance (Levenshtein); phrase semantics table (such as "死亡不掉落"); Chinese mojibake fix
-- **0.3.0** — Internal iteration release, no externally visible feature changes recorded
-- **0.4.0** — Fixed recursive self-triggering of `##你好`; count moved to the front (`#给我1个齿轮`); count glued to the name (`齿轮1`); exact item matching plus local error with candidates; whole-sentence phrases (`#白天`, `#永为白昼`, the latter sending two commands at once); clickable candidates (fill the chat box)
-- **0.5.0** — Added `#重置`, `#效果`, `#附魔`, `#附魔手持`, `#经验`, `#清除`
-- **0.5.1** — Effect parameter order fixed to "level first, duration second"; durations with units (`30秒` / `30s`); spoken whole-sentence effects (`#给我30秒的速度2效果`)
-- **0.6.0** — Structure lookup (`#找 村庄` and so on); an extra clickable coordinate line after a successful lookup, teleporting on a single click
-- **0.6.1** — Fixed multiple enchants being glued into one string, which caused "level is not a positive integer" (`#附魔手持 锋利5，耐久3`)
-- **0.6.2** — Fuzzy correction for enchant names (`节支杀手` -> `节肢杀手`)
+The complete version history lives in [CHANGELOG.md](../CHANGELOG.md) at the repository root (Chinese + English). Ready-to-use jars are on the [Releases](../../releases) page.
 
 ## Building from Source
 

@@ -1,6 +1,10 @@
 name: Build
 
-on: [push, pull_request]
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
 
 jobs:
   build:
@@ -27,12 +31,31 @@ jobs:
         run: ./gradlew build
         working-directory: chatcmd
 
-      # 上传构建产物的 jar（组件的版本与 release 阶段）
-      - name: Upload build artifacts
+      # 只上传 neoforge 的成品 jar：它已自带 core 的类，是自包含的，
+      # core-*.jar 只是中间产物，不该发给玩家。
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: chatcmd-jars
-          path: |
-            chatcmd/neoforge/build/libs/*.jar
-            chatcmd/core/build/libs/*.jar
-          if-no-files-found: warn
+          name: chatcmd-jar
+          path: chatcmd/neoforge/build/libs/chatcmd-*.jar
+          if-no-files-found: error
+
+  # 推 v* 标签时自动建 Release 并把成品 jar 挂上去。
+  # 平时推 main / 发 PR 只跑上面的 build，不会进这个 job。
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download built jar
+        uses: actions/download-artifact@v4
+        with:
+          name: chatcmd-jar
+          path: jars
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" --title "ChatCmd ${GITHUB_REF_NAME}" --generate-notes jars/chatcmd-*.jar

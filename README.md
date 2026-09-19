@@ -4,6 +4,10 @@
 
 A collection of Minecraft mods I made.
 
+**下载成品 jar：[Releases 版本发布](../../releases)** ｜ **全部版本变更：[CHANGELOG.md 更新日志](CHANGELOG.md)**
+
+**Download ready-to-use jars: [Releases](../../releases)** ｜ **All version changes: [CHANGELOG.md](CHANGELOG.md)**
+
 ---
 
 ## 模组列表
@@ -12,7 +16,7 @@ A collection of Minecraft mods I made.
 | --- | --- | --- | --- |
 | [ChatCmd 聊天指令](chatcmd/) | 在聊天框里用**中文口语**下达指令，模组自动翻译成原版指令（`/give`、`/tp`、`/time set` 等）并以你自己的身份发出 | Minecraft 1.21.1 / NeoForge | 可用 |
 
-点模组名进入各自的目录，里面有完整的中文 + 英文说明文档。
+点模组名进入各自的目录，里面有完整的中文 + 英文说明文档。版本变更记录统一放在 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 仓库结构
 
@@ -20,6 +24,7 @@ A collection of Minecraft mods I made.
 mc-mods/
 ├── LICENSE          # MIT 许可证，适用于本仓库全部内容
 ├── README.md        # 本文件
+├── CHANGELOG.md     # 全部模组的版本变更记录
 └── chatcmd/         # 一个模组一个子目录
     ├── README.md    # 该模组的完整文档（中文 + 英文）
     ├── LICENSE      # 该模组的许可证副本
