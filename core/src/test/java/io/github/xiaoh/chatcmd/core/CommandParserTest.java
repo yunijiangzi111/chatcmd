@@ -624,6 +624,31 @@ class CommandParserTest {
     }
 
     @Test
+    @DisplayName("附魔：中间带空格的「#附魔 手持 效率5」也走附魔手持，不再把「手持」当物品名")
+    void enchantHeldWithSpace() {
+        assertEquals("enchant @s minecraft:efficiency 5", parser.parse("#附魔 手持 效率 5").payload());
+        assertEquals("enchant @s minecraft:efficiency 5", parser.parse("#附魔 手持 效率5").payload());
+        assertEquals("enchant @s minecraft:efficiency 5", parser.parse("#附魔 手上 效率5").payload());
+    }
+
+    @Test
+    @DisplayName("附魔：「手持」只认整词 —— 真拿它当物品名的输入不受影响")
+    void enchantHeldWordMustBeWholeWord() {
+        // 「手持剑」是一个词，仍按物品解析（不认识就给候选），不会被改判成附魔手持
+        ParseResult r = parser.parse("#附魔 手持剑 锋利5");
+        assertSame(ParseResult.Status.UNKNOWN_VALUE, r.status());
+        assertTrue(r.hint().contains("不认识物品「手持剑」"), r.hint());
+    }
+
+    @Test
+    @DisplayName("附魔：只写「#附魔 手持」不给附魔名 -> 报参数个数不对，并给出附魔手持的用法")
+    void enchantHeldWordAloneNeedsPieces() {
+        ParseResult r = parser.parse("#附魔 手持");
+        assertSame(ParseResult.Status.BAD_ARGS, r.status());
+        assertTrue(r.hint().contains("#附魔手持"), r.hint());
+    }
+
+    @Test
     @DisplayName("附魔手持：多个附魔拆成多条指令（原版 /enchant 一次只能附一个）")
     void enchantHeldMultiple() {
         String two = "enchant @s minecraft:sharpness 5\nenchant @s minecraft:unbreaking 3";

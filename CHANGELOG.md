@@ -4,7 +4,12 @@
 
 ## ChatCmd 聊天指令
 
-当前版本：**0.8.1** · 完整文档见 [README.md](README.md)
+当前版本：**0.8.2** · 完整文档见 [README.md](README.md)
+
+### 0.8.2 —— 2026-09-19
+
+- 修复 `#附魔 手持 效率 5`（「附魔」和「手持」之间带空格）被当成物品名、报「不认识物品「手持」」并弹一串无关候选的问题：现在看到「手持 / 手上」会自动改判成 `#附魔手持`
+- 「手持」只认整词：`#附魔 手持剑 锋利5` 里的「手持剑」是一个词，仍按物品名解析，不会被改判
 
 ### 0.8.1 —— 2026-09-19
 
@@ -95,7 +100,12 @@ To download a ready-to-use jar, head to the [Releases](https://github.com/yuniji
 
 ## ChatCmd
 
-Current version: **0.8.1** · Full documentation in [README.md](README.md)
+Current version: **0.8.2** · Full documentation in [README.md](README.md)
+
+### 0.8.2 — 2026-09-19
+
+- Fixed `#附魔 手持 效率 5` (with a space between the verb 附魔 and 手持) being read as an item name, which reported "unknown item 手持" and offered a list of unrelated suggestions. The parser now re-routes to `#附魔手持` whenever it sees 手持 / 手上
+- 手持 is only recognised as a whole word: in `#附魔 手持剑 锋利5` the token 手持剑 is one word, so it is still treated as an item name and is not re-routed
 
 ### 0.8.1 — 2026-09-19
 

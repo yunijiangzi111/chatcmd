@@ -2,7 +2,7 @@
 
 用中文在聊天框里下达 Minecraft 指令。输入 `#给我1个钻石剑`，模组会把它翻译成原版指令 `/give @s minecraft:diamond_sword 1`，并以你自己的身份发出去。
 
-当前版本：**0.8.1**
+当前版本：**0.8.2**
 
 中文 | [English](#english)
 
@@ -32,8 +32,8 @@ ChatCmd 是一个 Minecraft **客户端模组（client-side mod）**，它拦截
 
 | 你要玩的版本 | 装哪个 jar | 需要的前置 |
 | --- | --- | --- |
-| Minecraft **1.21.1** | `chatcmd-0.8.1-neoforge+mc1.21.1.jar` | NeoForge（一个 Minecraft 模组加载器）**21.1.228** 或更高 |
-| Minecraft **1.20.1** | `chatcmd-0.8.1-forge+mc1.20.1.jar` | Forge（另一个 Minecraft 模组加载器）**47.3.0** 或更高 |
+| Minecraft **1.21.1** | `chatcmd-0.8.2-neoforge+mc1.21.1.jar` | NeoForge（一个 Minecraft 模组加载器）**21.1.228** 或更高 |
+| Minecraft **1.20.1** | `chatcmd-0.8.2-forge+mc1.20.1.jar` | Forge（另一个 Minecraft 模组加载器）**47.3.0** 或更高 |
 
 Java（一种编程语言运行环境）随游戏自带，两个版本都不需要单独安装。
 
@@ -318,6 +318,7 @@ Java（一种编程语言运行环境）随游戏自带，两个版本都不需�
 | 你输入 | 实际发出 |
 | --- | --- |
 | `#附魔手持 锋利5` | `/enchant @s minecraft:sharpness 5` |
+| `#附魔 手持 锋利5` | `/enchant @s minecraft:sharpness 5`（「手持」写在「附魔」后面也认） |
 | `#附魔手持 锋利5,耐久3` | `/enchant @s minecraft:sharpness 5`、`/enchant @s minecraft:unbreaking 3` |
 
 **服务器改过 `/enchant` 怎么办**：部分服务器（或服务端插件）会把原版 `/enchant <目标> <附魔> [等级]` 换成带 `add`（添加）/ `remove`（移除）子指令的形式，这时直接发原版写法只会得到「错误的命令参数」。指令树由服务器下发到客户端，模组在发送前会读一遍它：只要发现这台服务器的 `/enchant` 必须有 `add`，就自动补成 `/enchant add @s minecraft:sharpness 5`；原版环境一个字符都不动，也不会有额外提示。
@@ -647,10 +648,10 @@ gradlew.bat :core:test
 构建模组 jar：
 
 ```bat
-:: NeoForge（1.21.1）→ neoforge/build/libs/chatcmd-0.8.1-neoforge+mc1.21.1.jar
+:: NeoForge（1.21.1）→ neoforge/build/libs/chatcmd-0.8.2-neoforge+mc1.21.1.jar
 gradlew.bat :neoforge:jar
 
-:: Forge（1.20.1）→ forge/build/libs/chatcmd-0.8.1-forge+mc1.20.1.jar
+:: Forge（1.20.1）→ forge/build/libs/chatcmd-0.8.2-forge+mc1.20.1.jar
 gradlew.bat :forge:reobfJar
 ```
 
@@ -692,7 +693,7 @@ CI（持续集成）会自动构建并把**两个平台**的成品 jar 一起挂
 
 Use Chinese in the chat box to issue Minecraft commands. Type `#给我1个钻石剑` and the mod translates it into the vanilla command `/give @s minecraft:diamond_sword 1`, then sends it as you.
 
-Current version: **0.8.1**
+Current version: **0.8.2**
 
 [中文](#chatcmd-聊天指令) | English
 
@@ -720,8 +721,8 @@ Both platforms are provided:
 
 | The version you play | Which jar to install | Required mod loader |
 | --- | --- | --- |
-| Minecraft **1.21.1** | `chatcmd-0.8.1-neoforge+mc1.21.1.jar` | NeoForge **21.1.228** or newer |
-| Minecraft **1.20.1** | `chatcmd-0.8.1-forge+mc1.20.1.jar` | Forge **47.3.0** or newer |
+| Minecraft **1.21.1** | `chatcmd-0.8.2-neoforge+mc1.21.1.jar` | NeoForge **21.1.228** or newer |
+| Minecraft **1.20.1** | `chatcmd-0.8.2-forge+mc1.20.1.jar` | Forge **47.3.0** or newer |
 
 Java ships with the game, so no separate install is needed for either version.
 
@@ -1006,6 +1007,7 @@ The vanilla `/enchant` command can only apply one enchantment at a time, so mult
 | You type | Actually sent |
 | --- | --- |
 | `#附魔手持 锋利5` | `/enchant @s minecraft:sharpness 5` |
+| `#附魔 手持 锋利5` | `/enchant @s minecraft:sharpness 5` (手持 is also accepted after 附魔) |
 | `#附魔手持 锋利5,耐久3` | `/enchant @s minecraft:sharpness 5`, `/enchant @s minecraft:unbreaking 3` |
 
 **What if the server changed `/enchant`**: some servers (or server-side plugins) replace the vanilla `/enchant <targets> <enchantment> [<level>]` with a form that has `add` / `remove` subcommands. Sending the vanilla form there only yields "Incorrect argument for command". The command tree is sent from the server to the client, so before sending the mod reads it: if this server's `/enchant` requires `add`, the command is automatically completed to `/enchant add @s minecraft:sharpness 5`. On a vanilla server not a single character is changed, and there is no extra notice.
@@ -1335,10 +1337,10 @@ gradlew.bat :core:test
 Build the mod jar:
 
 ```bat
-:: NeoForge (1.21.1) -> neoforge/build/libs/chatcmd-0.8.1-neoforge+mc1.21.1.jar
+:: NeoForge (1.21.1) -> neoforge/build/libs/chatcmd-0.8.2-neoforge+mc1.21.1.jar
 gradlew.bat :neoforge:jar
 
-:: Forge (1.20.1) -> forge/build/libs/chatcmd-0.8.1-forge+mc1.20.1.jar
+:: Forge (1.20.1) -> forge/build/libs/chatcmd-0.8.2-forge+mc1.20.1.jar
 gradlew.bat :forge:reobfJar
 ```
 

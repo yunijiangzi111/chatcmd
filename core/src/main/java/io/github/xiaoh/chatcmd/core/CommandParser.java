@@ -62,6 +62,15 @@ public final class CommandParser {
     private static final Set<String> DECLINE_WORDS =
             Set.of("取消", "算了", "不要", "否", "不", "no", "n");
 
+    /**
+     * 「手持」的说法：口语里 {@code #附魔 手持 锋利5} 和 {@code #附魔手持 锋利5} 是一回事。
+     *
+     * <p>动词表里「附魔」比「附魔手持」短，最长前缀匹配只会命中前者，
+     * 后面那个「手持」就被当成物品名，报「不认识物品手持」。
+     * 命中的这个词不参与解析，只用来把整条改判成 {@link CommandType#ENCHANT_HELD}。
+     */
+    private static final Set<String> HELD_WORDS = Set.of("手持", "手上");
+
     /** 高危指令确认界面上的可点击候选（会拼上触发前缀）。 */
     private static final List<String> CONFIRM_SUGGESTIONS =
             List.of(TRIGGER + "确认", TRIGGER + "取消");
@@ -200,6 +209,15 @@ public final class CommandParser {
         AliasTable.VerbMatch match = matchOpt.get();
         String rest = body.substring(match.matchedLength()).trim();
 
+        // 4c. 把「手持」当物品名写的走法改判成附魔手持（#附魔 手持 锋利5）
+        if (match.type() == CommandType.ENCHANT) {
+            Optional<String> held = stripHeldWord(rest);
+            if (held.isPresent()) {
+                match = new AliasTable.VerbMatch(match.alias(), CommandType.ENCHANT_HELD, match.matchedLength());
+                rest = held.get();
+            }
+        }
+
         // 5. 参数切分
         List<String> args = splitArgs(rest, match.type());
         if (args.size() < match.type().minArgs() || args.size() > match.type().maxArgs()) {
@@ -209,6 +227,25 @@ public final class CommandParser {
 
         // 6. 逐参解析 + 组装
         return assemble(match.type(), args, note, input);
+    }
+
+    /**
+     * 判断动词后面的第一个词是不是「手持」的说法，是就去掉它返回剩下的部分。
+     *
+     * <p>
+     * 只认<b>整词</b>：{@code #附魔 手持剑 锋利5} 里的「手持剑」是一个词，不在此列，
+     * 免得把真拿它当物品名的输入也改了路由。
+     *
+     * @param rest 动词之后剩下的输入
+     * @return 去掉「手持」词之后的剩余参数；第一个词不是「手持」说法时返回 {@link Optional#empty()}
+     */
+    private static Optional<String> stripHeldWord(String rest) {
+        int space = rest.indexOf(' ');
+        String head = space < 0 ? rest : rest.substring(0, space);
+        if (!HELD_WORDS.contains(head)) {
+            return Optional.empty();
+        }
+        return Optional.of(space < 0 ? "" : rest.substring(space + 1).trim());
     }
 
     /**
