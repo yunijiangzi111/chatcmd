@@ -33,7 +33,7 @@ ChatCmd 是一个 Minecraft **客户端模组（client-side mod）**，它拦截
 
 安装方式：
 
-1. 把构建产物 `chatcmd-0.6.2.jar` 放进 `.minecraft/mods` 目录。
+1. 把构建产物 `chatcmd-0.6.2-neoforge+mc1.21.1.jar` 放进 `.minecraft/mods` 目录。
 2. 启动游戏。
 
 这是**客户端模组（client-side mod）**：只装在客户端即可，**服务端不需要安装**。它声明了 `dist = Dist.CLIENT`，即使误装到专用服务器上也不会加载客户端类，不会导致崩服。
@@ -574,7 +574,7 @@ gradlew.bat :core:test
 ./gradlew :core:test
 ```
 
-构建模组 jar（产物在 `neoforge/build/libs/chatcmd-0.6.2.jar`）：
+构建模组 jar（产物在 `neoforge/build/libs/chatcmd-0.6.2-neoforge+mc1.21.1.jar`）：
 
 ```bat
 gradlew.bat :neoforge:jar
@@ -634,7 +634,7 @@ Requirements:
 
 Installation:
 
-1. Put the build artifact `chatcmd-0.6.2.jar` into `.minecraft/mods`.
+1. Put the build artifact `chatcmd-0.6.2-neoforge+mc1.21.1.jar` into `.minecraft/mods`.
 2. Start the game.
 
 This is a **client-side mod**: installing it on the client is enough. The server does **not** need it. It declares `dist = Dist.CLIENT`, so even if it is accidentally installed on a dedicated server, the client classes are not loaded and the server will not crash.
@@ -1175,7 +1175,7 @@ gradlew.bat :core:test
 ./gradlew :core:test
 ```
 
-Build the mod jar (output at `neoforge/build/libs/chatcmd-0.6.2.jar`):
+Build the mod jar (output at `neoforge/build/libs/chatcmd-0.6.2-neoforge+mc1.21.1.jar`):
 
 ```bat
 gradlew.bat :neoforge:jar

@@ -85,6 +85,10 @@ dependencies {
 def coreJar = project(':core').tasks.named('jar')
 tasks.named('jar', Jar) {
     dependsOn coreJar
+    // 产物命名对齐社区惯例：<模组id>-<模组版本>-<平台>+mc<MC版本>.jar
+    // 例：chatcmd-0.6.2-neoforge+mc1.21.1.jar（车万女仆 Touhou Little Maid 等同款风格）。
+    // 好处：一个 jar 文件自己就说清了「哪个模组、哪个版本、给哪个加载器、给哪个 MC 版本」。
+    archiveFileName = "${mod_id}-${mod_version}-neoforge+mc${minecraft_version}.jar"
     from(coreJar.flatMap { it.archiveFile }.map { zipTree(it.asFile) }) {
         exclude 'META-INF/MANIFEST.MF'
     }

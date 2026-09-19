@@ -13,6 +13,7 @@
 ### 0.6.2 —— 2026-09-19
 
 - 附魔名支持模糊纠错（打错字自动纠正）：`#附魔手持 锋利5，节支杀手5` 里的「节支杀手」会被纠成「节肢杀手」，并在回显里明说纠正了什么
+- 成品 jar 改名对齐社区惯例：`chatcmd-0.6.2-neoforge+mc1.21.1.jar`（模组id-模组版本-平台+mcMC版本），内容和旧名 `chatcmd-0.6.2.jar` 完全一样
 
 ### 0.6.1 —— 2026-09-19
 
@@ -81,6 +82,7 @@ Current version: **0.6.2** · Full documentation in [chatcmd/README.md](chatcmd/
 ### 0.6.2 — 2026-09-19
 
 - Enchantment names now support fuzzy correction (typos are fixed automatically): in `#附魔手持 锋利5，节支杀手5` the typo `节支杀手` is corrected to `节肢杀手`, and the mod explicitly tells you what it corrected
+- The released jar was renamed to follow community convention: `chatcmd-0.6.2-neoforge+mc1.21.1.jar` (modid-modversion-platform+mcMCversion). Its contents are identical to the old `chatcmd-0.6.2.jar`
 
 ### 0.6.1 — 2026-09-19
 
