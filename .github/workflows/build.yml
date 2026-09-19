@@ -1,4 +1,6 @@
-name: Build
+# 注意：GitHub Actions 只会扫描仓库根目录的 .github/workflows/，
+# 放在 chatcmd/.github/ 下是不会被执行的，所以这个文件必须待在根目录。
+name: ChatCmd Build
 
 on:
   push:
@@ -25,8 +27,8 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      # 本模组位于仓库子目录 chatcmd/，且是独立的 Gradle 工程，
-      # checkout 落在仓库根，必须切进 chatcmd/ 再构建。
+      # ChatCmd 是仓库子目录里的独立 Gradle 工程，checkout 落在仓库根，
+      # 必须切进 chatcmd/ 再构建。
       - name: Build with Gradle
         run: ./gradlew build
         working-directory: chatcmd
