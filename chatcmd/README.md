@@ -546,7 +546,7 @@ ChatCmd 是一个 Minecraft **客户端模组（client-side mod）**，它拦截
 
 ## 更新日志
 
-全部版本的完整变更记录统一放在仓库根目录的 [CHANGELOG.md 更新日志](../CHANGELOG.md)（中文 + 英文），成品 jar 见 [Releases 版本发布](../../releases)。
+全部版本的完整变更记录统一放在仓库根目录的 [CHANGELOG.md 更新日志](../CHANGELOG.md)（中文 + 英文），成品 jar 见 [Releases 版本发布](https://github.com/yunijiangzi111/mc-mods/releases)。
 
 ## 从源码构建
 
@@ -1147,7 +1147,7 @@ When an item name is not recognized, the mod **reports the error locally and lis
 
 ## Changelog
 
-The complete version history lives in [CHANGELOG.md](../CHANGELOG.md) at the repository root (Chinese + English). Ready-to-use jars are on the [Releases](../../releases) page.
+The complete version history lives in [CHANGELOG.md](../CHANGELOG.md) at the repository root (Chinese + English). Ready-to-use jars are on the [Releases](https://github.com/yunijiangzi111/mc-mods/releases) page.
 
 ## Building from Source
 
