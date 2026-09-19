@@ -5,7 +5,10 @@ name: ChatCmd Build
 on:
   push:
     branches: [main]
-    tags: ['v*']
+    # tag 用「模组id-v版本」前缀式（如 chatcmd-v0.6.2）：
+    # 本仓库将来会有多个模组，而 Releases 是仓库级的单一列表，
+    # 不带前缀的话两个模组都发 v0.1.0 就分不清是谁的了。
+    tags: ['chatcmd-v*']
   pull_request:
 
 jobs:
@@ -62,4 +65,5 @@ jobs:
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${GITHUB_REF_NAME}" --repo "${{ github.repository }}" --title "ChatCmd ${GITHUB_REF_NAME}" --generate-notes jars/chatcmd-*.jar
+        # ${GITHUB_REF_NAME#chatcmd-v} 去掉 tag 前缀，标题显示成「ChatCmd 0.6.2」而不是「ChatCmd chatcmd-v0.6.2」。
+        run: gh release create "${GITHUB_REF_NAME}" --repo "${{ github.repository }}" --title "ChatCmd ${GITHUB_REF_NAME#chatcmd-v}" --generate-notes jars/chatcmd-*.jar
