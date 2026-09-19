@@ -45,10 +45,12 @@ jobs:
           path: chatcmd/neoforge/build/libs/chatcmd-*.jar
           if-no-files-found: error
 
-  # 推 v* 标签时自动建 Release 并把成品 jar 挂上去。
+  # 推 chatcmd-v* 标签时自动建 Release 并把成品 jar 挂上去。
   # 平时推 main / 发 PR 只跑上面的 build，不会进这个 job。
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    # 必须和上面的 tags 过滤器一致：tag 是 chatcmd-v0.6.2，
+    # github.ref 是 refs/tags/chatcmd-v0.6.2，不是 refs/tags/v0.6.2。
+    if: startsWith(github.ref, 'refs/tags/chatcmd-v')
     needs: build
     runs-on: ubuntu-latest
     permissions:
