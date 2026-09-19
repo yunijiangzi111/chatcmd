@@ -57,7 +57,9 @@ jobs:
           name: chatcmd-jar
           path: jars
 
+      # 这个 job 没有 checkout，当前目录不是 git 仓库，
+      # gh 无法自行推断目标仓库，必须用 --repo 显式指定。
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${GITHUB_REF_NAME}" --title "ChatCmd ${GITHUB_REF_NAME}" --generate-notes jars/chatcmd-*.jar
+        run: gh release create "${GITHUB_REF_NAME}" --repo "${{ github.repository }}" --title "ChatCmd ${GITHUB_REF_NAME}" --generate-notes jars/chatcmd-*.jar
