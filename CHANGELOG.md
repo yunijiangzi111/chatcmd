@@ -4,7 +4,12 @@
 
 ## ChatCmd 聊天指令
 
-当前版本：**0.8.0** · 完整文档见 [README.md](README.md)
+当前版本：**0.8.1** · 完整文档见 [README.md](README.md)
+
+### 0.8.1 —— 2026-09-19
+
+- **附魔手持兼容被改过的 `/enchant`**：有的服务器（或服务端插件）把原版 `/enchant <目标> <附魔> [等级]` 换成了带 `add`（添加）/ `remove`（移除）子指令的形式，再发原版写法只会得到「错误的命令参数」。现在发送前会读一遍服务器下发到客户端的指令树，发现这台服务器的 `/enchant` 需要 `add` 才自动补上（`/enchant add @s 效率 5`），原版环境一个字符都不动
+- 判定条件是「原版参数节点 `targets` 不在、而 `add` 子指令在」；两者并存说明原版写法仍然可用，就不插手。回显里显示的永远是实际发出的那条指令
 
 ### 0.8.0 —— 2026-09-19
 
@@ -90,7 +95,12 @@ To download a ready-to-use jar, head to the [Releases](https://github.com/yuniji
 
 ## ChatCmd
 
-Current version: **0.8.0** · Full documentation in [README.md](README.md)
+Current version: **0.8.1** · Full documentation in [README.md](README.md)
+
+### 0.8.1 — 2026-09-19
+
+- **enchant held now copes with a modified `/enchant`**: some servers (or server-side plugins) replace the vanilla `/enchant <targets> <enchantment> [<level>]` with a form that has `add` / `remove` subcommands, where the vanilla form only yields "Incorrect argument for command". Before sending, the mod now reads the command tree the server sent to the client, and when this server's `/enchant` requires `add` it is completed automatically (`/enchant add @s 效率 5`). On a vanilla server not a single character is changed
+- The condition is "the vanilla argument node `targets` is absent while the `add` subcommand is present"; if both exist the vanilla form still works, so the mod keeps its hands off. The echo always shows the command that was really sent
 
 ### 0.8.0 — 2026-09-19
 

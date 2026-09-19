@@ -5,16 +5,21 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import com.mojang.brigadier.tree.CommandNode;
+import com.mojang.brigadier.tree.LiteralCommandNode;
 
 import io.github.xiaoh.chatcmd.core.AliasTable;
 import io.github.xiaoh.chatcmd.core.CommandParser;
 import io.github.xiaoh.chatcmd.core.EnchantSyntax;
 import io.github.xiaoh.chatcmd.core.ParseResult;
+import io.github.xiaoh.chatcmd.core.ServerCompat;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.ChatScreen;
+import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
@@ -262,7 +267,10 @@ public final class ChatCmdClient {
      * <b>刻意不绕过任何权限校验</b>，能否生效由服务端按玩家权限判定。
      */
     private static void executeCommands(LocalPlayer player, List<String> commands) {
-        for (String command : commands) {
+        // 指令树是服务器下发的，先看一眼这台服务器的 /enchant 是不是子指令形式
+        boolean enchantNeedsAdd = serverEnchantNeedsAdd();
+        for (String raw : commands) {
+            String command = ServerCompat.adaptEnchant(raw, enchantNeedsAdd);
             player.connection.sendCommand(command);
             // 结构查找的回执要等服务器回话，先挂上「等下一条消息」的标记
             if (command.startsWith("locate structure ")) {
@@ -274,6 +282,28 @@ public final class ChatCmdClient {
                             .withStyle(ChatFormatting.GRAY),
                     false);
         }
+    }
+
+    /**
+     * 这台服务器的 {@code /enchant} 是否被换成了 {@code enchant add|remove}（添加 / 移除）形式。
+     *
+     * <p>原版是 {@code /enchant <目标> <附魔> [等级]}，没有子指令。部分服务器（或服务端插件）
+     * 会把它换成带 {@code add} / {@code remove} 子指令的版本，这时再发原版写法只会得到
+     * 「错误的命令参数」。指令树由服务器下发到客户端，直接读树就能判断，不必猜。
+     *
+     * <p>只有原版参数节点（{@code targets}）<b>不在</b>、而 {@code add} 子指令
+     * <b>在</b>时才认为需要补 —— 两者并存说明原版写法仍然可用，就不插手。
+     */
+    private static boolean serverEnchantNeedsAdd() {
+        ClientPacketListener connection = Minecraft.getInstance().getConnection();
+        if (connection == null) {
+            return false;
+        }
+        CommandNode<SharedSuggestionProvider> enchant = connection.getCommands().getRoot().getChild("enchant");
+        if (enchant == null || enchant.getChild("targets") != null) {
+            return false;
+        }
+        return enchant.getChild("add") instanceof LiteralCommandNode;
     }
 
     /**
