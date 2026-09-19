@@ -1,5 +1,7 @@
 package io.github.xiaoh.chatcmd.core;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -20,6 +22,18 @@ public interface ItemIdResolver {
      * @return 解析成功返回物品 ID；无法确定时返回 {@link Optional#empty()}
      */
     Optional<String> resolve(String alias);
+
+    /**
+     * 当前已知的全部候选别名，供 core 在认不出物品时列出「你是不是想用」的候选。
+     *
+     * <p>只用于<b>提示</b>，绝不参与自动纠错 —— 模组物品名彼此高度相似
+     * （齿轮 / 大齿轮 / 小齿轮），自动猜错等于静默给错东西，所以这里必须精准匹配。
+     *
+     * <p>默认什么都不提供；适配层覆写后可返回全量本地化物品名。
+     */
+    default Collection<String> candidates() {
+        return List.of();
+    }
 
     /** 什么都不知道的空实现，用于单元测试和降级。 */
     ItemIdResolver EMPTY = alias -> Optional.empty();

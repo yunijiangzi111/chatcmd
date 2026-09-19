@@ -1,6 +1,9 @@
 package io.github.xiaoh.chatcmd.core;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -156,5 +159,38 @@ final class Fuzzy {
             }
         }
         return best == null || tie || bestDistance == 0 ? Optional.empty() : Optional.of(best);
+    }
+
+    /**
+     * 按编辑距离从近到远列出候选，供「多项近义给选择」用。
+     *
+     * <p>与 {@link #uniqueBest} 的关键差别：这里<b>允许并列</b>。并列时自动纠错必须放弃
+     * （猜错就是静默改词），但候选是给用户点的，全列出来反而更好选。
+     *
+     * <p>与 {@link #nearest} 一样跳过距离 0 的项 —— 完全相等说明本来就认出来了，
+     * 不该出现在「你是不是想用」里。
+     *
+     * @param input      已归一化的用户输入
+     * @param candidates 候选词集合
+     * @param limit      允许的最大编辑距离
+     * @param maxResults 最多返回几个
+     */
+    static List<String> nearestList(String input, Collection<String> candidates, int limit, int maxResults) {
+        if (input.isEmpty() || maxResults <= 0) {
+            return List.of();
+        }
+        List<String> hits = new ArrayList<>();
+        for (String candidate : candidates) {
+            if (!compatible(input, candidate)) {
+                continue;
+            }
+            int d = distance(input, candidate);
+            if (d == 0 || d > limit) {
+                continue;
+            }
+            hits.add(candidate);
+        }
+        hits.sort(Comparator.comparingInt(candidate -> distance(input, candidate)));
+        return hits.size() <= maxResults ? List.copyOf(hits) : List.copyOf(hits.subList(0, maxResults));
     }
 }

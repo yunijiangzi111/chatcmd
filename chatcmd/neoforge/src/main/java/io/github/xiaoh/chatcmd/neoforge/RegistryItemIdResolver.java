@@ -1,5 +1,6 @@
 package io.github.xiaoh.chatcmd.neoforge;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -41,6 +42,17 @@ public final class RegistryItemIdResolver implements ItemIdResolver {
             return Optional.empty();
         }
         return BuiltInRegistries.ITEM.containsKey(key) ? Optional.of(key.toString()) : Optional.empty();
+    }
+
+    /**
+     * 把本地化名称表的全部键交给 core，用于在认不出物品时列出可点击的候选。
+     *
+     * <p>注意这只用于「提示」，不参与自动纠错 —— 模组物品名彼此只差一个字
+     * （齿轮 / 大齿轮 / 小齿轮），自动猜错等于静默给错东西。
+     */
+    @Override
+    public Collection<String> candidates() {
+        return localizedNames().keySet();
     }
 
     /**

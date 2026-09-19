@@ -21,5 +21,18 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      # 本模组位于仓库子目录 chatcmd/，且是独立的 Gradle 工程，
+      # checkout 落在仓库根，必须切进 chatcmd/ 再构建。
       - name: Build with Gradle
         run: ./gradlew build
+        working-directory: chatcmd
+
+      # 上传构建产物的 jar（组件的版本与 release 阶段）
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: chatcmd-jars
+          path: |
+            chatcmd/neoforge/build/libs/*.jar
+            chatcmd/core/build/libs/*.jar
+          if-no-files-found: warn

@@ -1,12 +1,18 @@
 package io.github.xiaoh.chatcmd.core;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
  * 解析结果状态机。
  *
- * <p>注意：{@code NO_PERMISSION} <b>不属于</b>这里 —— 解析与执行解耦，
+ * <p>
+ * 注意：{@code NO_PERMISSION} <b>不属于</b>这里 —— 解析与执行解耦，
  * 能否生效完全由服务端按玩家权限判定，客户端无从得知。
+ *
+ * <p>
+ * v0.4 起一次解析可以产出<b>多条指令</b>（例如「永为白昼」= 调到白天 + 关掉昼夜交替），
+ * 也可以携带<b>可点击的候选</b>（解析失败时让用户点一下就把正确写法填回聊天框）。
  */
 public final class ParseResult {
 
@@ -27,14 +33,22 @@ public final class ParseResult {
         UNKNOWN_VALUE
     }
 
+    /** 多指令分隔符：一句中文口语可以对应多条原版指令。 */
+    static final String COMMAND_SEPARATOR = "\n";
+
     private final Status status;
     private final String payload;
     private final String hint;
+    private final List<String> commands;
+    private final List<String> suggestions;
 
-    private ParseResult(Status status, String payload, String hint) {
+    private ParseResult(Status status, String payload, String hint,
+            List<String> commands, List<String> suggestions) {
         this.status = status;
         this.payload = payload;
         this.hint = hint;
+        this.commands = commands;
+        this.suggestions = suggestions;
     }
 
     /**
@@ -43,32 +57,42 @@ public final class ParseResult {
      * @param command 生成的指令，<b>不含前导斜杠</b>，可直接传给 {@code sendChatCommand}
      */
     public static ParseResult ok(String command) {
-        return new ParseResult(Status.OK, command, "");
+        return ok(command, "");
     }
 
     /**
      * 解析成功，并附带一条给用户看的补充说明（例如「已按模糊匹配识别为 X」）。
      *
-     * @param command 生成的指令，<b>不含前导斜杠</b>
+     * @param command 生成的指令，<b>不含前导斜杠</b>；要一次发多条时用 {@code \n} 分隔
      * @param hint    成功时的补充说明；没有就传空串
      */
     public static ParseResult ok(String command, String hint) {
-        return new ParseResult(Status.OK, command, hint);
+        return new ParseResult(Status.OK, command, hint,
+                List.of(command.split(COMMAND_SEPARATOR)), List.of());
     }
 
     /** 不归本模组管，原样放行。 */
     public static ParseResult notMyInput() {
-        return new ParseResult(Status.NOT_MY_INPUT, "", "");
+        return new ParseResult(Status.NOT_MY_INPUT, "", "", List.of(), List.of());
     }
 
     /** 逃生通道：{@code text} 是要原样作为聊天发出的文本。 */
     public static ParseResult escapeChat(String text) {
-        return new ParseResult(Status.ESCAPE_CHAT, text, "");
+        return new ParseResult(Status.ESCAPE_CHAT, text, "", List.of(), List.of());
     }
 
     /** 解析失败，{@code hint} 是给用户看的用法提示。 */
     public static ParseResult error(Status status, String hint) {
-        return new ParseResult(status, "", hint);
+        return error(status, hint, List.of());
+    }
+
+    /**
+     * 解析失败，并附上若干<b>可回填</b>的候选。
+     *
+     * @param suggestions 每项都是完整的一行输入（含前导 {@code #}），点一下即填回聊天框
+     */
+    public static ParseResult error(Status status, String hint, List<String> suggestions) {
+        return new ParseResult(status, "", hint, List.of(), List.copyOf(suggestions));
     }
 
     public Status status() {
@@ -78,7 +102,8 @@ public final class ParseResult {
     /**
      * 结果载荷。
      *
-     * <p>{@link Status#OK} 时是生成的指令（不含前导斜杠）；
+     * <p>
+     * {@link Status#OK} 时是生成的指令（不含前导斜杠，多条用 {@code \n} 分隔）；
      * {@link Status#ESCAPE_CHAT} 时是要原样发出的聊天文本；其余状态为空串。
      */
     public String payload() {
@@ -88,6 +113,21 @@ public final class ParseResult {
     /** 给用户看的提示：失败时是纠错说明，成功时可能是模糊匹配的补充说明；没有则为空串。 */
     public String hint() {
         return hint;
+    }
+
+    /**
+     * 拆好的指令列表，按顺序发送。
+     *
+     * <p>
+     * 只有 {@link Status#OK} 时非空；单条指令时长度为 1，行为与 v0.3 完全一致。
+     */
+    public List<String> commands() {
+        return commands;
+    }
+
+    /** 解析失败时给出的候选；每项都是可直接填回聊天框的完整输入（含前导 {@code #}）。 */
+    public List<String> suggestions() {
+        return suggestions;
     }
 
     public boolean isOk() {
@@ -107,6 +147,9 @@ public final class ParseResult {
         }
         if (!hint.isEmpty()) {
             sb.append(", hint='").append(hint).append('\'');
+        }
+        if (!suggestions.isEmpty()) {
+            sb.append(", suggestions=").append(suggestions);
         }
         return sb.append('}').toString();
     }
