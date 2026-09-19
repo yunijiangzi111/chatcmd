@@ -33,20 +33,30 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew build
 
-      # 只上传两个平台的成品 jar：它们各自都自带了 core 的类，是自包含的，
+      # 只收两个平台的成品 jar：它们各自都自带了 core 的类，是自包含的，
       # core-*.jar 只是中间产物，不该发给玩家。
       #
       # 两个目录都必须是 build/libs：
       #   neoforge 的 :jar 直接输出到 build/libs；
       #   forge 走 legacyforge 插件，开发产物落在 build/devlibs，
       #   重混淆后的成品才是 build/libs 里那个。
+      #
+      # 必须先平铺到一个目录再上传：upload-artifact 会保留路径层级，
+      # 直接写上面两个不同目录的话，artifact 里会带着 neoforge/… 与 forge/…
+      # 的层级，下载回来就是 jars/neoforge/build/libs/xxx.jar，
+      # 下面 release job 里的 jars/chatcmd-*.jar 一条都匹配不上，发布直接失败。
+      - name: Collect jars
+        run: |
+          mkdir -p dist
+          cp neoforge/build/libs/chatcmd-*.jar dist/
+          cp forge/build/libs/chatcmd-*.jar dist/
+          ls -l dist
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: chatcmd-jar
-          path: |
-            neoforge/build/libs/chatcmd-*.jar
-            forge/build/libs/chatcmd-*.jar
+          path: dist/*.jar
           if-no-files-found: error
 
   # 推 v* 标签时自动建 Release 并把成品 jar 挂上去。
@@ -60,16 +70,38 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Download built jar
         uses: actions/download-artifact@v4
         with:
           name: chatcmd-jar
           path: jars
 
-      # 这个 job 没有 checkout，当前目录不是 git 仓库，
-      # gh 无法自行推断目标仓库，必须用 --repo 显式指定。
+      # Release 正文直接取 CHANGELOG.md 里对应版本的条目，
+      # 而不是让 gh 自动生成一串提交标题 —— 玩家要看的是「更新了什么」，不是 commit 列表。
+      # fork 出来的 awk 只取「双语 CHANGELOG 里的第一段」（中文那段），
+      # 碰到下一个 ### 标题就停，所以英文那段不会重复贴进来。
+      - name: Extract changelog section
+        run: |
+          ver="${GITHUB_REF_NAME#v}"
+          awk -v v="$ver" '
+            index($0, "### " v) == 1 { flag = 1 }
+            flag && /^### / && index($0, "### " v) != 1 { exit }
+            flag { print }
+          ' CHANGELOG.md > RELEASE_NOTES.md
+          echo "---- RELEASE_NOTES.md ($(wc -l < RELEASE_NOTES.md) lines) ----"
+          cat RELEASE_NOTES.md
+
+      # checkout 之后当前目录就是 git 仓库了，但这里仍显式用 --repo，
+      # 免得 workflow 里 checkout 顺序一改又踩坑。
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
-        # ${GITHUB_REF_NAME#v} 去掉开头的 v，标题显示成「ChatCmd 0.6.2」而不是「ChatCmd v0.6.2」。
-        run: gh release create "${GITHUB_REF_NAME}" --repo "${{ github.repository }}" --title "ChatCmd ${GITHUB_REF_NAME#v}" --generate-notes jars/chatcmd-*.jar
+        # ${GITHUB_REF_NAME#v} 去掉开头的 v，标题显示成「ChatCmd 0.7.0」而不是「ChatCmd v0.7.0」。
+        # 先 ls 一下下载回来的 jar：万一 artifact 的路径层级又变了，
+        # 日志里能直接看出实际结构，不用再猜（v0.7.0 第一次发布就栽在这上面）。
+        run: |
+          ls -l jars
+          gh release create "${GITHUB_REF_NAME}" --repo "${{ github.repository }}" --title "ChatCmd ${GITHUB_REF_NAME#v}" --notes-file RELEASE_NOTES.md jars/chatcmd-*.jar
