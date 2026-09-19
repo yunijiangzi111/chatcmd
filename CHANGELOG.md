@@ -1,14 +1,10 @@
 # 更新日志
 
-本仓库所有模组的版本变更都记录在这里。每个模组一节，版本号倒序（最新的在最上面）。
-
-想直接下载成品 jar，去 [Releases（版本发布）](../../releases) 页面。
-
 ---
 
 ## ChatCmd 聊天指令
 
-当前版本：**0.6.2** · 完整文档见 [chatcmd/README.md](chatcmd/README.md)
+当前版本：**0.6.2** · 完整文档见 [README.md](README.md)
 
 ### 0.6.2 —— 2026-09-19
 
@@ -71,13 +67,13 @@
 
 # Changelog
 
-Every version change across all mods in this repository is recorded here. One section per mod, versions in descending order (newest first).
+Every version change of this mod is recorded here, in descending order (newest first).
 
-To download a ready-to-use jar, head to the [Releases](../../releases) page.
+To download a ready-to-use jar, head to the [Releases](https://github.com/yunijiangzi111/chatcmd/releases) page.
 
 ## ChatCmd
 
-Current version: **0.6.2** · Full documentation in [chatcmd/README.md](chatcmd/README.md)
+Current version: **0.6.2** · Full documentation in [README.md](README.md)
 
 ### 0.6.2 — 2026-09-19
 

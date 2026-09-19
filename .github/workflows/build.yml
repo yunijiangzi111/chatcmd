@@ -1,14 +1,13 @@
-# 注意：GitHub Actions 只会扫描仓库根目录的 .github/workflows/，
-# 放在 chatcmd/.github/ 下是不会被执行的，所以这个文件必须待在根目录。
+# 注：GitHub Actions 只扫描仓库根目录的 .github/workflows/，
+# 本文件必须待在根目录才会被执行。
 name: ChatCmd Build
 
 on:
   push:
     branches: [main]
-    # tag 用「模组id-v版本」前缀式（如 chatcmd-v0.6.2）：
-    # 本仓库将来会有多个模组，而 Releases 是仓库级的单一列表，
-    # 不带前缀的话两个模组都发 v0.1.0 就分不清是谁的了。
-    tags: ['chatcmd-v*']
+    # 这是 ChatCmd 单模组仓库，tag 直接用简洁的 v<版本号>（如 v0.6.2）。
+    # 不需要模组前缀：前缀式是给「多模组共用一仓」准备的，这里用不上。
+    tags: ['v*']
   pull_request:
 
 jobs:
@@ -30,11 +29,9 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      # ChatCmd 是仓库子目录里的独立 Gradle 工程，checkout 落在仓库根，
-      # 必须切进 chatcmd/ 再构建。
+      # ChatCmd 的 Gradle 工程就在仓库根，直接构建即可。
       - name: Build with Gradle
         run: ./gradlew build
-        working-directory: chatcmd
 
       # 只上传 neoforge 的成品 jar：它已自带 core 的类，是自包含的，
       # core-*.jar 只是中间产物，不该发给玩家。
@@ -42,15 +39,15 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: chatcmd-jar
-          path: chatcmd/neoforge/build/libs/chatcmd-*.jar
+          path: neoforge/build/libs/chatcmd-*.jar
           if-no-files-found: error
 
-  # 推 chatcmd-v* 标签时自动建 Release 并把成品 jar 挂上去。
+  # 推 v* 标签时自动建 Release 并把成品 jar 挂上去。
   # 平时推 main / 发 PR 只跑上面的 build，不会进这个 job。
   release:
-    # 必须和上面的 tags 过滤器一致：tag 是 chatcmd-v0.6.2，
-    # github.ref 是 refs/tags/chatcmd-v0.6.2，不是 refs/tags/v0.6.2。
-    if: startsWith(github.ref, 'refs/tags/chatcmd-v')
+    # 必须和上面的 tags 过滤器一致：tag 是 v0.6.2 时，
+    # github.ref 是 refs/tags/v0.6.2。
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -67,5 +64,5 @@ jobs:
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
-        # ${GITHUB_REF_NAME#chatcmd-v} 去掉 tag 前缀，标题显示成「ChatCmd 0.6.2」而不是「ChatCmd chatcmd-v0.6.2」。
-        run: gh release create "${GITHUB_REF_NAME}" --repo "${{ github.repository }}" --title "ChatCmd ${GITHUB_REF_NAME#chatcmd-v}" --generate-notes jars/chatcmd-*.jar
+        # ${GITHUB_REF_NAME#v} 去掉开头的 v，标题显示成「ChatCmd 0.6.2」而不是「ChatCmd v0.6.2」。
+        run: gh release create "${GITHUB_REF_NAME}" --repo "${{ github.repository }}" --title "ChatCmd ${GITHUB_REF_NAME#v}" --generate-notes jars/chatcmd-*.jar
